@@ -19,7 +19,7 @@ window.__RUNTIME_CONFIG__ = {
   "VITE_APP_DESCRIPTION": "Trade perpetual contracts with shared deep liquidity, sub-second settlement, and zero gas fees on order execution. Non-custodial trading.",
   "VITE_HAS_PRIMARY_LOGO": "true",
   "VITE_HAS_SECONDARY_LOGO": "true",
-  "VITE_ENABLED_MENUS": "Trading,Portfolio,Markets,Swap,Rewards,Vaults",
+  "VITE_ENABLED_MENUS": "Trading,Portfolio,Markets,Swap,Rewards,Points,Vaults",
   "VITE_CUSTOM_MENUS": "AlgoBotApp, https://algobotapp.com/",
   "VITE_ENABLE_SERVICE_DISCLAIMER_DIALOG": "false",
   "VITE_ENABLE_CAMPAIGNS": "true",
