@@ -235,7 +235,7 @@ export const useOrderlyConfig = () => {
               <img
                 src={withBasePath("/logo.webp")}
                 alt="logo"
-                style={{ height: "42px" }}
+                style={{ height: "24px" }}
               />
             ),
           }
@@ -389,7 +389,7 @@ export const useOrderlyConfig = () => {
                 <img
                   src={withBasePath("/logo-secondary.webp")}
                   alt="logo"
-                  style={{ height: "32px" }}
+                  style={{ height: "24px" }}
                 />
               ) : (
                 components.title
