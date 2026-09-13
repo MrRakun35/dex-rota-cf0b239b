@@ -1,4 +1,5 @@
 import { ReactNode, useCallback, lazy, Suspense, useMemo } from "react";
+import { registerTwapExec } from "twap-plugin";
 import { OrderlyAppProvider } from "@orderly.network/react-app";
 import type { NetworkId } from "@orderly.network/types";
 import { DemoGraduationChecker } from "@/components/DemoGraduationChecker";
@@ -69,6 +70,7 @@ const OrderlyProvider = (props: { children: ReactNode }) => {
     [deploymentEnv, networkId],
   );
   const themes = useMemo(() => resolveDexThemeConfig().themes, []);
+  const plugins = useMemo(() => [registerTwapExec()], []);
 
   const privyAppId = getRuntimeConfig("VITE_PRIVY_APP_ID");
   const usePrivy = !!privyAppId;
@@ -177,6 +179,7 @@ const OrderlyProvider = (props: { children: ReactNode }) => {
           "VITE_RESTRICTED_REGIONS",
         ),
       }}
+      plugins={plugins}
     >
       <DemoGraduationChecker />
       <ServiceDisclaimerDialog />

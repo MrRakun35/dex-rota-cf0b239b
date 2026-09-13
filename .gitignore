@@ -11,3 +11,7 @@ node_modules
 # SpecStory explanation file
 .specstory/.what-is-this.md
 /public/manifest.json
+
+# macOS system files
+.DS_Store
+*.DS_Store

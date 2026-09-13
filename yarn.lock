@@ -16306,6 +16306,11 @@ tunnel-agent@^0.6.0:
   dependencies:
     safe-buffer "^5.0.1"
 
+twap-plugin@^2.0.4:
+  version "2.0.4"
+  resolved "https://registry.yarnpkg.com/twap-plugin/-/twap-plugin-2.0.4.tgz#701ce020d302bc6f78bd9def12db54503ab20db9"
+  integrity sha512-WQEN4X8QT9wP9+ftsPJYYhSXke6iGvS/huEywMVO3IvPxcd1mt5YVQbj/kTqU0JhH1sqKWx2fZGvuDPz+XjriA==
+
 tweetnacl-util@^0.15.1:
   version "0.15.1"
   resolved "https://registry.npmjs.org/tweetnacl-util/-/tweetnacl-util-0.15.1.tgz"
