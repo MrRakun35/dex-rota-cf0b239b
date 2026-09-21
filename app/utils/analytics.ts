@@ -65,9 +65,28 @@ async function initializeGA4(
   config: Extract<AnalyticsConfigV1, { provider: "ga4" }>,
 ) {
   window.dataLayer = window.dataLayer || [];
-  window.gtag = (...args: unknown[]) => {
-    window.dataLayer?.push(args);
-  };
+  if (typeof window.gtag !== "function") {
+    // Google Tag Manager strictly requires arguments object (Object.prototype.toString.call === '[object Arguments]')
+    // eslint-disable-next-line prefer-rest-params
+    window.gtag = function () {
+      // eslint-disable-next-line prefer-rest-params
+      window.dataLayer?.push(arguments);
+    };
+  }
+
+  const existingScript =
+    (document.getElementById(GA4_SCRIPT_ID) as HTMLScriptElement | null) ||
+    document.querySelector<HTMLScriptElement>(
+      `script[src*="googletagmanager.com/gtag/js?id=${encodeURIComponent(config.measurementId)}"]`,
+    );
+
+  if (existingScript) {
+    existingScript.id = GA4_SCRIPT_ID;
+    existingScript.dataset.orderlyAnalyticsLoaderVersion =
+      ANALYTICS_LOADER_VERSION;
+    existingScript.dataset.orderlyAnalyticsProvider = config.provider;
+    return;
+  }
 
   const script = document.createElement("script");
   script.id = GA4_SCRIPT_ID;
