@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { API } from "@orderly.network/types";
 import { TradingPage } from "@orderly.network/trading";
-import { updateSymbol } from "@/utils/storage";
-import { formatSymbol, generatePageTitle } from "@/utils/utils";
+import { API } from "@orderly.network/types";
+import { OrderEntryTSLEnhancer } from "@/components/tsl/OrderEntryTSLEnhancer";
+import { TSLTableEnhancer } from "@/components/tsl/TSLTableEnhancer";
+import { useTSLChartLine } from "@/components/tsl/useTSLChartLine";
 import { useOrderlyConfig } from "@/utils/config";
 import { getPageMeta } from "@/utils/seo";
 import { renderSEOTags } from "@/utils/seo-tags";
+import { updateSymbol } from "@/utils/storage";
+import { formatSymbol, generatePageTitle } from "@/utils/utils";
 
 export default function PerpSymbol() {
   const params = useParams();
@@ -14,6 +17,9 @@ export default function PerpSymbol() {
   const config = useOrderlyConfig();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // Active TSL yellow chart line manager
+  useTSLChartLine(symbol);
 
   useEffect(() => {
     updateSymbol(symbol);
@@ -29,7 +35,7 @@ export default function PerpSymbol() {
 
       navigate(`/perp/${symbol}${queryString}`);
     },
-    [navigate, searchParams]
+    [navigate, searchParams],
   );
 
   const pageMeta = getPageMeta();
@@ -44,6 +50,8 @@ export default function PerpSymbol() {
         tradingViewConfig={config.tradingPage.tradingViewConfig}
         sharePnLConfig={config.tradingPage.sharePnLConfig}
       />
+      <TSLTableEnhancer />
+      <OrderEntryTSLEnhancer symbol={symbol} />
       <div className="md:hidden pb-2 pt-8 text-center">
         <span className="oui-text-2xs oui-text-base-contrast-54">
           Charts powered by{" "}

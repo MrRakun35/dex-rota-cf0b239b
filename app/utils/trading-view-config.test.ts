@@ -27,4 +27,22 @@ describe("createTradingViewConfig", () => {
       font: "Manrope",
     });
   });
+
+  it("disables default volume indicator creation", () => {
+    const config = createTradingViewConfig("theme-config");
+    expect(config.disabled_features).toContain(
+      "create_volume_indicator_by_default",
+    );
+    expect(config.disabled_features).toContain(
+      "create_volume_indicator_by_default_once",
+    );
+  });
+
+  it("configures studies overrides for RSI", () => {
+    const config = createTradingViewConfig("theme-config");
+    expect(config.studiesOverrides).toMatchObject({
+      "relative strength index.length": 14,
+    });
+    expect(config.studiesOverrides).not.toHaveProperty("moving average.length");
+  });
 });
