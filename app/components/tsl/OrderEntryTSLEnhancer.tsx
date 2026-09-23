@@ -87,7 +87,12 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
         btnText.includes("Uzun") ||
         btnText.includes("Kısa");
 
-      if (isSubmitBtn && tslEnabled && armedParamsRef.current) {
+      if (
+        isSubmitBtn &&
+        tslEnabled &&
+        armedParamsRef.current &&
+        isLimitOrMarket()
+      ) {
         isArmedRef.current = true;
       }
     };
@@ -97,6 +102,46 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
       document.removeEventListener("click", handleOrderSubmitClick, true);
     };
   }, [tslEnabled]);
+
+  // Helper to detect if Order Entry is currently on LIMIT or MARKET
+  const isLimitOrMarket = useCallback((): boolean => {
+    if (typeof document === "undefined") return false;
+
+    // 1. If Orderly's TP/SL container is present in the DOM, it is definitely Limit or Market
+    const tpslContainer = document.querySelector(".oui-orderEntry-tpsl");
+    if (tpslContainer) return true;
+
+    // 2. Check desktop order type tabs
+    const limitBtn = document.querySelector(
+      '[data-testid="oui-testid-orderEntry-orderType-limit"]',
+    );
+    if (limitBtn?.getAttribute("aria-pressed") === "true") return true;
+
+    const marketBtn = document.querySelector(
+      '[data-testid="oui-testid-orderEntry-orderType-market"]',
+    );
+    if (marketBtn?.getAttribute("aria-pressed") === "true") return true;
+
+    // 3. Check mobile order type select
+    const mobileBtn = document.querySelector(
+      '[data-testid="oui-testid-orderEntry-orderType-button"]',
+    );
+    if (mobileBtn) {
+      const text = (mobileBtn.textContent || "").toLowerCase();
+      if (
+        (text.includes("limit") ||
+          text.includes("market") ||
+          text.includes("piyasa")) &&
+        !text.includes("stop") &&
+        !text.includes("scaled") &&
+        !text.includes("trailing")
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }, []);
 
   // Watch for position updates and automatically attach TSL when armed
   useEffect(() => {
@@ -139,13 +184,27 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
     }
   }, [currentPosQty, currentPos, submitTSL]);
 
-  // Inject into DOM beside/under Order Entry TP/SL
+  // Inject into DOM beside/under Order Entry TP/SL only when order type is LIMIT or MARKET
   useEffect(() => {
     if (typeof document === "undefined") return;
 
+    const cleanupHost = () => {
+      const existingHost = document.getElementById("order-entry-tsl-host");
+      if (existingHost) {
+        existingHost.remove();
+      }
+      setPortalTarget(null);
+    };
+
     const attachPortal = () => {
+      const allowed = isLimitOrMarket();
       const tpslContainer = document.querySelector(".oui-orderEntry-tpsl");
-      if (!tpslContainer || !tpslContainer.parentElement) {
+
+      // If not Limit or Market, or if native TP/SL container is not present, clean up host and hide
+      if (!allowed || !tpslContainer || !tpslContainer.parentElement) {
+        cleanupHost();
+        setTslEnabled(false);
+        isArmedRef.current = false;
         return;
       }
 
@@ -154,8 +213,13 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
         host = document.createElement("div");
         host.id = "order-entry-tsl-host";
         host.className = "oui-w-full";
+      }
 
-        // Insert immediately after .oui-orderEntry-tpsl
+      // Ensure host is placed immediately after .oui-orderEntry-tpsl
+      if (
+        tpslContainer.parentElement &&
+        host.previousElementSibling !== tpslContainer
+      ) {
         tpslContainer.parentElement.insertBefore(
           host,
           tpslContainer.nextSibling,
@@ -167,12 +231,18 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
 
     attachPortal();
     const observer = new MutationObserver(attachPortal);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-pressed", "class"],
+    });
 
     return () => {
       observer.disconnect();
+      cleanupHost();
     };
-  }, []);
+  }, [isLimitOrMarket]);
 
   if (!portalTarget) return null;
 
