@@ -107,9 +107,14 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
   const isLimitOrMarket = useCallback((): boolean => {
     if (typeof document === "undefined") return false;
 
-    // 1. If Orderly's TP/SL container is present in the DOM, it is definitely Limit or Market
-    const tpslContainer = document.querySelector(".oui-orderEntry-tpsl");
-    if (tpslContainer) return true;
+    // 1. Check if Orderly's NATIVE TP/SL container is present in the DOM (not our own TSL host)
+    const allTpsl = document.querySelectorAll(".oui-orderEntry-tpsl");
+    for (let i = 0; i < allTpsl.length; i++) {
+      // Skip elements that are inside our own TSL portal host
+      if (!allTpsl[i].closest("#order-entry-tsl-host")) {
+        return true;
+      }
+    }
 
     // 2. Check desktop order type tabs
     const limitBtn = document.querySelector(
