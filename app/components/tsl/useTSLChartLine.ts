@@ -31,6 +31,34 @@ function getThemeColor(cssVarName: string, fallback: string): string {
   }
 }
 
+/**
+ * Calculates hover threshold matching Orderly's TPSLService.generateThreshold().
+ * It uses 2% of the currently visible vertical price range on the active chart
+ * so TSL triggers at the exact same mouse proximity as the native TP/SL button.
+ */
+function getOrderlyThreshold(chart: any): number {
+  try {
+    const panes = chart?.getPanes?.();
+    const priceScale = panes?.[0]?.getRightPriceScales?.()?.[0];
+    if (priceScale) {
+      const priceRange = priceScale.getVisiblePriceRange?.();
+      if (
+        priceRange &&
+        typeof priceRange.from === "number" &&
+        typeof priceRange.to === "number"
+      ) {
+        const priceWidth = Math.abs(priceRange.to - priceRange.from);
+        if (priceWidth > 0) {
+          return Math.min(priceWidth * 0.02, priceWidth);
+        }
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return 10;
+}
+
 export function useTSLChartLine(symbol: string) {
   const ee = useEventEmitter();
   const { account } = useAccount();
@@ -89,6 +117,7 @@ export function useTSLChartLine(symbol: string) {
   const markPriceRef = useRef<number | undefined>(markPrice);
   const quoteDpRef = useRef<number>(quoteDp);
   const tslTriggerLineRef = useRef<any>(null);
+  const activeTPSLLineRef = useRef<any>(null);
   const isDraggingTriggerRef = useRef<boolean>(false);
   const isDraggingActiveLineRef = useRef<boolean>(false);
   const ensureTSLTriggerButtonRef = useRef<
@@ -622,6 +651,7 @@ export function useTSLChartLine(symbol: string) {
         // Wrap setText to detect native TSL/Trailing lines & TP/SL trigger button
         const origSetText = line.setText.bind(line);
         let isNativeTSL = false;
+        let isTPSLTrigger = false;
 
         line.setText = function (text: string) {
           // Detect native trailing stop line by its text
@@ -661,8 +691,11 @@ export function useTSLChartLine(symbol: string) {
             typeof text === "string" &&
             (text === "TP/SL" ||
               text.includes("TP/SL") ||
-              text.toLowerCase().includes("tpsl"))
+              text.toLowerCase().includes("tpsl") ||
+              text.includes("止盈"))
           ) {
+            isTPSLTrigger = true;
+            activeTPSLLineRef.current = line;
             const entryPrice = line.getPrice();
             if (entryPrice && entryPrice > 0) {
               ensureTSLTriggerButtonRef.current?.(
@@ -680,13 +713,16 @@ export function useTSLChartLine(symbol: string) {
         const origRemove = line.remove ? line.remove.bind(line) : null;
         if (origRemove) {
           line.remove = function () {
-            if (!isDraggingTriggerRef.current && tslTriggerLineRef.current) {
-              try {
-                tslTriggerLineRef.current.remove();
-              } catch {
-                // ignore
+            if (isTPSLTrigger) {
+              activeTPSLLineRef.current = null;
+              if (!isDraggingTriggerRef.current && tslTriggerLineRef.current) {
+                try {
+                  tslTriggerLineRef.current.remove();
+                } catch {
+                  // ignore
+                }
+                tslTriggerLineRef.current = null;
               }
-              tslTriggerLineRef.current = null;
             }
             return origRemove();
           };
@@ -716,6 +752,7 @@ export function useTSLChartLine(symbol: string) {
             }
           }
           if (
+            isTPSLTrigger &&
             tslTriggerLineRef.current &&
             !isDraggingTriggerRef.current &&
             price
@@ -733,6 +770,7 @@ export function useTSLChartLine(symbol: string) {
       };
 
       // Also listen to crossHairMoved for smooth hover detection near position line
+      // Matching Orderly's TPSLService 2% visible price range threshold and 100ms debounce
       try {
         crossHairSub = activeChart
           .crossHairMoved()
@@ -743,8 +781,11 @@ export function useTSLChartLine(symbol: string) {
             const openPrice = Number(pos.average_open_price ?? pos.open);
             if (!openPrice || isNaN(openPrice)) return;
 
-            const threshold = openPrice * 0.015;
-            if (Math.abs(openPrice - args.price) < threshold) {
+            // Use exact same threshold as Orderly's TPSLService (2% of visible price range)
+            const threshold = getOrderlyThreshold(activeChart);
+            const isNearPosition = Math.abs(openPrice - args.price) < threshold;
+
+            if (isNearPosition) {
               if (clearTriggerTimer) {
                 clearTimeout(clearTriggerTimer);
                 clearTriggerTimer = null;
@@ -752,6 +793,7 @@ export function useTSLChartLine(symbol: string) {
               ensureTSLTriggerButtonRef.current?.(activeChart, openPrice);
             } else {
               if (!clearTriggerTimer && tslTriggerLineRef.current) {
+                // Match Orderly's 100ms remove debounce timer
                 clearTriggerTimer = setTimeout(() => {
                   if (
                     !isDraggingTriggerRef.current &&
@@ -765,7 +807,7 @@ export function useTSLChartLine(symbol: string) {
                     tslTriggerLineRef.current = null;
                   }
                   clearTriggerTimer = null;
-                }, 200);
+                }, 100);
               }
             }
           });
