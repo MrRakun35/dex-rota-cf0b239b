@@ -273,8 +273,7 @@ export const useOrderlyConfig = () => {
       brandColor: "rgba(255, 255, 255, 0.98)",
       refLink:
         typeof window !== "undefined" ? window.location.origin : undefined,
-      refSlogan:
-        getRuntimeConfig("VITE_ORDERLY_BROKER_NAME") || "Orderly Network",
+      refSlogan: getRuntimeConfig("VITE_ORDERLY_BROKER_NAME") || "ROTA",
     }),
     [],
   );
@@ -292,6 +291,12 @@ export const useOrderlyConfig = () => {
         id: "Markets",
         href: "/markets",
         name: t("common.markets"),
+        isDefault: true,
+      },
+      {
+        id: "CopyTrade",
+        href: "/copy-trade",
+        name: "Copy Trade",
         isDefault: true,
       },
       { id: "Swap", href: "/swap", name: t("extend.swap"), isDefault: true },

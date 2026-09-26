@@ -1,25 +1,57 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
-import {
-  usePositionStream,
-  useOrderStream,
-  useAccount,
-} from "@orderly.network/hooks";
+import { usePositionStream, useOrderStream } from "@orderly.network/hooks";
 import { API, AlgoOrderRootType, OrderStatus } from "@orderly.network/types";
-import { cn, Text } from "@orderly.network/ui";
+import { Text } from "@orderly.network/ui";
 import { TSLDialog } from "./TSLDialog";
+import { findActiveTSLOrder, TSLOrder } from "./tsl-utils";
 
 interface TSLPortalTarget {
   id: string;
   element: HTMLElement;
   position: API.PositionTPSLExt | API.PositionExt;
-  activeOrder?: any;
+  activeOrder?: TSLOrder;
+}
+
+interface OpenTSLDialogDetail {
+  position?: API.PositionTPSLExt | API.PositionExt;
+  initialCallbackRate?: string;
+}
+
+function samePortals(
+  current: TSLPortalTarget[],
+  next: TSLPortalTarget[],
+): boolean {
+  return (
+    current.length === next.length &&
+    current.every(
+      (target, index) =>
+        target.id === next[index]?.id &&
+        target.element === next[index]?.element &&
+        target.activeOrder?.algo_order_id ===
+          next[index]?.activeOrder?.algo_order_id &&
+        target.activeOrder?.callback_rate ===
+          next[index]?.activeOrder?.callback_rate &&
+        target.activeOrder?.callback_value ===
+          next[index]?.activeOrder?.callback_value &&
+        target.activeOrder?.is_activated ===
+          next[index]?.activeOrder?.is_activated &&
+        target.position.position_qty === next[index]?.position.position_qty &&
+        target.position.average_open_price ===
+          next[index]?.position.average_open_price,
+    )
+  );
 }
 
 export const TSLTableEnhancer: React.FC = () => {
-  const { account } = useAccount();
   const [positionsData] = usePositionStream("all");
-  const positions = positionsData?.rows || [];
+  const positions = useMemo(() => positionsData?.rows ?? [], [positionsData]);
 
   const [selectedPosition, setSelectedPosition] = useState<
     API.PositionTPSLExt | API.PositionExt | null
@@ -35,6 +67,26 @@ export const TSLTableEnhancer: React.FC = () => {
     },
     { keeplive: true },
   );
+  const positionsRef = useRef(positions);
+  const algoOrdersRef = useRef(algoOrders);
+  positionsRef.current = positions;
+  algoOrdersRef.current = algoOrders;
+
+  // Mark price and unrealized PnL update many times per second. Neither changes
+  // the TSL column layout, so do not tear down and rebuild injected cells for
+  // those ticks.
+  const positionStructureKey = positions
+    .map(
+      (position) =>
+        `${position.account_id ?? "main"}:${position.symbol}:${position.margin_mode ?? "CROSS"}:${position.position_qty}:${position.average_open_price}`,
+    )
+    .join("|");
+  const algoOrderStructureKey = (algoOrders ?? [])
+    .map(
+      (order) =>
+        `${order.algo_order_id}:${order.symbol}:${order.side}:${order.margin_mode}:${order.callback_rate ?? ""}:${order.callback_value ?? ""}:${order.is_activated ?? ""}`,
+    )
+    .join("|");
 
   const [desktopPortals, setDesktopPortals] = useState<TSLPortalTarget[]>([]);
   const [mobilePortals, setMobilePortals] = useState<TSLPortalTarget[]>([]);
@@ -52,8 +104,9 @@ export const TSLTableEnhancer: React.FC = () => {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handleOpenTSLEvent = (e: any) => {
-      const { position, initialCallbackRate } = e.detail || {};
+    const handleOpenTSLEvent = (event: Event) => {
+      const { position, initialCallbackRate } =
+        (event as CustomEvent<OpenTSLDialogDetail>).detail ?? {};
       if (position) {
         setSelectedPosition(position);
       }
@@ -167,18 +220,17 @@ export const TSLTableEnhancer: React.FC = () => {
       bodyRows.forEach((row, idx) => {
         // Match position by symbol or row index
         const rowText = row.textContent || "";
-        let matchingPos = positions.find(
+        const matchingPos = positionsRef.current.find(
           (p) =>
             p.symbol &&
             rowText.includes(
               p.symbol.replace("PERP_", "").replace("_USDC", ""),
             ),
         );
-        if (!matchingPos && positions[idx]) {
-          matchingPos = positions[idx];
+        if (!matchingPos) {
+          row.querySelector('td[data-index="tsl"]')?.remove();
+          return;
         }
-
-        if (!matchingPos) return;
 
         let tslTd = row.querySelector(
           'td[data-index="tsl"]',
@@ -227,11 +279,9 @@ export const TSLTableEnhancer: React.FC = () => {
           ".oui-flex.oui-items-center",
         ) || tslTd) as HTMLElement;
 
-        const activeOrder = algoOrders?.find(
-          (o: any) =>
-            o.symbol === matchingPos?.symbol &&
-            (o.algo_type === "TRAILING_STOP" ||
-              o.algo_type === AlgoOrderRootType.TRAILING_STOP),
+        const activeOrder = findActiveTSLOrder(
+          algoOrdersRef.current,
+          matchingPos,
         );
 
         newPortals.push({
@@ -242,7 +292,9 @@ export const TSLTableEnhancer: React.FC = () => {
         });
       });
 
-      setDesktopPortals(newPortals);
+      setDesktopPortals((current) =>
+        samePortals(current, newPortals) ? current : newPortals,
+      );
     };
 
     const enhanceMobileCards = () => {
@@ -256,17 +308,17 @@ export const TSLTableEnhancer: React.FC = () => {
 
       cards.forEach((card, idx) => {
         const cardText = card.textContent || "";
-        let matchingPos = positions.find(
+        const matchingPos = positionsRef.current.find(
           (p) =>
             p.symbol &&
             cardText.includes(
               p.symbol.replace("PERP_", "").replace("_USDC", ""),
             ),
         );
-        if (!matchingPos && positions[idx]) {
-          matchingPos = positions[idx];
+        if (!matchingPos) {
+          card.querySelector('[data-tsl-mobile="true"]')?.remove();
+          return;
         }
-        if (!matchingPos) return;
 
         let tslMobileDiv = card.querySelector(
           '[data-tsl-mobile="true"]',
@@ -286,11 +338,9 @@ export const TSLTableEnhancer: React.FC = () => {
           }
         }
 
-        const activeOrder = algoOrders?.find(
-          (o: any) =>
-            o.symbol === matchingPos?.symbol &&
-            (o.algo_type === "TRAILING_STOP" ||
-              o.algo_type === AlgoOrderRootType.TRAILING_STOP),
+        const activeOrder = findActiveTSLOrder(
+          algoOrdersRef.current,
+          matchingPos,
         );
 
         newMobilePortals.push({
@@ -301,16 +351,22 @@ export const TSLTableEnhancer: React.FC = () => {
         });
       });
 
-      setMobilePortals(newMobilePortals);
+      setMobilePortals((current) =>
+        samePortals(current, newMobilePortals) ? current : newMobilePortals,
+      );
     };
 
     enhanceDesktopTable();
     enhanceMobileCards();
 
     // Observe DOM mutations inside trading data list
+    let frame = 0;
     const observer = new MutationObserver(() => {
-      enhanceDesktopTable();
-      enhanceMobileCards();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        enhanceDesktopTable();
+        enhanceMobileCards();
+      });
     });
 
     const targetNode =
@@ -321,9 +377,16 @@ export const TSLTableEnhancer: React.FC = () => {
     });
 
     return () => {
+      cancelAnimationFrame(frame);
       observer.disconnect();
+      document.querySelectorAll('[data-index="tsl"]').forEach((node) => {
+        node.remove();
+      });
+      document
+        .querySelectorAll('[data-tsl-mobile="true"]')
+        .forEach((node) => node.remove());
     };
-  }, [positions, algoOrders]);
+  }, [positionStructureKey, algoOrderStructureKey]);
 
   return (
     <>
@@ -372,7 +435,7 @@ export const TSLTableEnhancer: React.FC = () => {
 
 interface TSLCellRendererProps {
   position: API.PositionTPSLExt | API.PositionExt;
-  activeOrder?: any;
+  activeOrder?: TSLOrder;
   onOpen: () => void;
 }
 
@@ -440,6 +503,9 @@ const TSLMobileRenderer: React.FC<TSLCellRendererProps> = ({
   const ratePercent = activeOrder?.callback_rate
     ? (Number(activeOrder.callback_rate) * 100).toFixed(1)
     : null;
+  const valueDistance = activeOrder?.callback_value
+    ? Number(activeOrder.callback_value)
+    : null;
 
   return (
     <div className="oui-flex oui-items-center oui-justify-between oui-w-full">
@@ -449,7 +515,12 @@ const TSLMobileRenderer: React.FC<TSLCellRendererProps> = ({
           onClick={onOpen}
           className="oui-cursor-pointer oui-text-warning hover:oui-underline"
         >
-          {ratePercent ? `${ratePercent}%` : "Active"} ✎
+          {ratePercent
+            ? `${ratePercent}%`
+            : valueDistance
+              ? `$${valueDistance}`
+              : "Active"}{" "}
+          ✎
         </Text>
       ) : (
         <Text

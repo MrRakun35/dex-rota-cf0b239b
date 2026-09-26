@@ -11,7 +11,7 @@ const ServiceDisclaimerDialog = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   const enableDialog = getRuntimeConfigBoolean(
-    "VITE_ENABLE_SERVICE_DISCLAIMER_DIALOG"
+    "VITE_ENABLE_SERVICE_DISCLAIMER_DIALOG",
   );
 
   useEffect(() => {
@@ -41,11 +41,11 @@ const ServiceDisclaimerDialog = () => {
 
   const content = {
     intro: `${getRuntimeConfig(
-      "VITE_ORDERLY_BROKER_NAME"
-    )} uses Orderly Network's white-label solution and is not a direct operator of the orderbook.`,
-    disclaimer: `By clicking 'Agree', users will access a third-party website using Orderly software. ${getRuntimeConfig(
-      "VITE_ORDERLY_BROKER_NAME"
-    )} confirms that it does not directly operate or control the infrastructure or take responsibility for code operations.`,
+      "VITE_ORDERLY_BROKER_NAME",
+    )} provides a non-custodial trading experience through ROTA infrastructure.`,
+    disclaimer: `By clicking 'Agree', users will access the ROTA trading interface. ${getRuntimeConfig(
+      "VITE_ORDERLY_BROKER_NAME",
+    )} does not custody user funds and transactions remain subject to network and smart-contract risk.`,
   };
 
   return (

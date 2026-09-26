@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TradingPage } from "@orderly.network/trading";
 import { API } from "@orderly.network/types";
@@ -11,14 +11,47 @@ import { renderSEOTags } from "@/utils/seo-tags";
 import { updateSymbol } from "@/utils/storage";
 import { formatSymbol, generatePageTitle } from "@/utils/utils";
 
+const chartOverlayMigrationKey = "rota:tradingview-overlays:v2";
+const chartDisplaySettingKey = "TradingviewSDK.displaySetting";
+
+function enableNativeChartOverlays() {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(chartOverlayMigrationKey)) return;
+
+  try {
+    const stored = localStorage.getItem(chartDisplaySettingKey);
+    const current = stored
+      ? (JSON.parse(stored) as Record<string, unknown>)
+      : {};
+    localStorage.setItem(
+      chartDisplaySettingKey,
+      JSON.stringify({
+        ...current,
+        position: true,
+        buySell: true,
+        limitOrders: true,
+        stopOrders: true,
+        tpsl: true,
+        positionTpsl: true,
+        trailingStop: true,
+        liquidationPrice: true,
+      }),
+    );
+    localStorage.setItem(chartOverlayMigrationKey, "1");
+  } catch {
+    // A malformed legacy value should not prevent the trading page rendering.
+    localStorage.removeItem(chartDisplaySettingKey);
+  }
+}
+
 export default function PerpSymbol() {
   const params = useParams();
-  const [symbol, setSymbol] = useState(params.symbol!);
+  enableNativeChartOverlays();
+  const symbol = params.symbol!;
   const config = useOrderlyConfig();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Active TSL yellow chart line manager
   useTSLChartLine(symbol);
 
   useEffect(() => {
@@ -27,15 +60,15 @@ export default function PerpSymbol() {
 
   const onSymbolChange = useCallback(
     (data: API.Symbol) => {
-      const symbol = data.symbol;
-      setSymbol(symbol);
+      const nextSymbol = data.symbol;
+      if (nextSymbol === symbol) return;
 
       const searchParamsString = searchParams.toString();
       const queryString = searchParamsString ? `?${searchParamsString}` : "";
 
-      navigate(`/perp/${symbol}${queryString}`);
+      navigate(`/perp/${nextSymbol}${queryString}`);
     },
-    [navigate, searchParams],
+    [navigate, searchParams, symbol],
   );
 
   const pageMeta = getPageMeta();

@@ -1,10 +1,9 @@
-import { useMemo, useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import {
   useMutation,
   useOrderStream,
   useSubAccountMutation,
   useSubAccountAlgoOrderStream,
-  useEventEmitter,
   useMarkPrice,
   useSymbolsInfo,
   useAccount,
@@ -18,6 +17,22 @@ import {
   MarginMode,
 } from "@orderly.network/types";
 import { toast } from "@orderly.network/ui";
+import {
+  activationPriceError,
+  callbackPercentToValue,
+  callbackPercentToRatio,
+  findActiveTSLOrder,
+  floorToTick,
+  getErrorMessage,
+  isCallbackRateTickAligned,
+  roundToTick,
+  toFiniteNumber,
+} from "./tsl-utils";
+
+interface MutationResponse {
+  success?: boolean;
+  message?: string;
+}
 
 export interface SubmitTSLParams {
   callbackRate?: number | string; // in percent, e.g. 1.5 for 1.5%
@@ -29,7 +44,6 @@ export interface SubmitTSLParams {
 export function usePositionTSL(
   position?: API.PositionTPSLExt | API.PositionExt,
 ) {
-  const ee = useEventEmitter();
   const { account } = useAccount();
   const symbol = position?.symbol || "";
   const symbolInfoMap = useSymbolsInfo();
@@ -65,14 +79,8 @@ export function usePositionTSL(
 
   // Find active trailing stop order for this position
   const activeTSLOrder = useMemo(() => {
-    if (!symbol || !algoOrders) return undefined;
-    return algoOrders.find(
-      (order: any) =>
-        order.symbol === symbol &&
-        (order.algo_type === "TRAILING_STOP" ||
-          order.algo_type === AlgoOrderRootType.TRAILING_STOP),
-    );
-  }, [algoOrders, symbol]);
+    return findActiveTSLOrder(algoOrders, position);
+  }, [algoOrders, position]);
 
   // Main account mutations
   const [doMainCreate, { isMutating: isMainCreating }] =
@@ -126,10 +134,13 @@ export function usePositionTSL(
 
       const { callbackRate, callbackValue, quantity, activatedPrice } = params;
 
-      const numQty = Number(quantity);
+      const rawQty = Number(quantity);
       const maxQty = Math.abs(Number(position.position_qty));
+      const baseTick = symbolInfo?.base_tick || 0.00000001;
+      const baseDp = symbolInfo?.base_dp ?? 8;
+      const numQty = floorToTick(rawQty, baseTick, baseDp);
 
-      if (isNaN(numQty) || numQty <= 0) {
+      if (!Number.isFinite(numQty) || numQty <= 0) {
         toast.error("Please enter a valid quantity.");
         return false;
       }
@@ -139,12 +150,12 @@ export function usePositionTSL(
         return false;
       }
 
-      let parsedCallbackRate: string | undefined = undefined;
-      let parsedCallbackValue: number | undefined = undefined;
+      let parsedCallbackRate: string | undefined;
+      let parsedCallbackValue: number | undefined;
 
       if (callbackValue !== undefined && callbackValue !== "") {
-        const val = Number(callbackValue);
-        if (isNaN(val) || val <= 0) {
+        const val = toFiniteNumber(callbackValue);
+        if (val === undefined || val <= 0) {
           toast.error("Callback value must be greater than 0.");
           return false;
         }
@@ -152,39 +163,45 @@ export function usePositionTSL(
           toast.error("Callback value must be less than mark price.");
           return false;
         }
-        parsedCallbackValue = val;
+        parsedCallbackValue = roundToTick(
+          val,
+          symbolInfo?.quote_tick || 0.01,
+          symbolInfo?.quote_dp ?? 2,
+        );
       } else if (callbackRate !== undefined && callbackRate !== "") {
-        const rate = Number(callbackRate);
-        if (isNaN(rate) || rate < 0.1 || rate > 5.0) {
+        const ratio = callbackPercentToRatio(callbackRate);
+        if (!ratio) {
           toast.error("Callback rate must be between 0.1% and 5.0%.");
           return false;
         }
-        // Round to 0.1% step
-        const roundedRate = Math.round(rate * 10) / 10;
-        const isWholePercent =
-          Math.abs(roundedRate - Math.round(roundedRate)) < 0.0001;
 
-        if (isWholePercent) {
-          // Integer percentages (1.0%, 2.0%, 3.0%, 4.0%, 5.0%) strictly meet Orderly's tick 0.01
-          parsedCallbackRate = (roundedRate / 100).toFixed(2);
-        } else {
-          // For decimal rates (0.1%, 0.2%, ..., 1.1%, 1.2%, etc.), Orderly's backend strictly enforces
-          // "The trailing rate X must meet the tick 0.01" when sent as callback_rate.
-          // Therefore, convert decimal rates into callback_value in quote currency (meeting quote_tick)
-          const currentPrice =
-            markPrice ?? Number(position.average_open_price ?? 0);
-          if (currentPrice > 0) {
-            const rawVal = currentPrice * (roundedRate / 100);
-            const quoteTick = symbolInfo?.quote_tick || 0.01;
-            const quoteDp = symbolInfo?.quote_dp ?? 2;
-            const steppedVal = Math.max(
-              quoteTick,
-              Math.round(rawVal / quoteTick) * quoteTick,
+        // The API's callback_rate tick is 0.01 in ratio units, so only whole
+        // percentages can use it (2% => 0.02). Preserve 0.1% UI steps by
+        // representing fractional percentages as a quote-price distance.
+        const useCallbackValue =
+          (activeTSLOrder?.callback_value && !activeTSLOrder.callback_rate) ||
+          !isCallbackRateTickAligned(callbackRate);
+
+        if (useCallbackValue) {
+          const referencePrice =
+            Number(activeTSLOrder?.extreme_price) ||
+            markPrice ||
+            Number(position.average_open_price ?? 0);
+          parsedCallbackValue = callbackPercentToValue(
+            callbackRate,
+            referencePrice,
+            symbolInfo?.quote_tick || 0.01,
+            symbolInfo?.quote_dp ?? 2,
+          );
+
+          if (parsedCallbackValue === undefined) {
+            toast.error(
+              "Mark price is not available yet. Please wait and try again.",
             );
-            parsedCallbackValue = Number(steppedVal.toFixed(quoteDp));
-          } else {
-            parsedCallbackRate = (roundedRate / 100).toFixed(3);
+            return false;
           }
+        } else {
+          parsedCallbackRate = ratio;
         }
       }
 
@@ -194,20 +211,40 @@ export function usePositionTSL(
       }
 
       let parsedActivatedPrice: number | undefined = undefined;
-      if (activatedPrice !== undefined && activatedPrice !== "") {
-        const actPrice = Number(activatedPrice);
-        if (isNaN(actPrice) || actPrice <= 0) {
-          toast.error("Please enter a valid activation price.");
+      if (
+        activeTSLOrder?.activated_price &&
+        !activeTSLOrder.is_activated &&
+        (activatedPrice === undefined || activatedPrice === "")
+      ) {
+        toast.error("Activation price is required while this TSL is pending.");
+        return false;
+      }
+      if (
+        !activeTSLOrder?.is_activated &&
+        activatedPrice !== undefined &&
+        activatedPrice !== ""
+      ) {
+        const validationError = activationPriceError(
+          activatedPrice,
+          position,
+          markPrice,
+        );
+        if (validationError) {
+          toast.error(validationError);
           return false;
         }
-        parsedActivatedPrice = actPrice;
+        parsedActivatedPrice = roundToTick(
+          Number(activatedPrice),
+          symbolInfo?.quote_tick || 0.01,
+          symbolInfo?.quote_dp ?? 2,
+        );
       }
 
       // Closing side is opposite to position side
       const closingSide =
         position.position_qty > 0 ? OrderSide.SELL : OrderSide.BUY;
 
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         symbol: position.symbol,
         algo_type: AlgoOrderRootType.TRAILING_STOP,
         type: OrderType.MARKET,
@@ -229,10 +266,10 @@ export function usePositionTSL(
       }
 
       try {
-        let res: any;
+        let res: MutationResponse | undefined;
         if (activeTSLOrder?.algo_order_id) {
           // Native SDK uses 'order_id' key for PUT /v1/algo/order and sends changed fields
-          const updatePayload: Record<string, any> = {
+          const updatePayload: Record<string, unknown> = {
             order_id: activeTSLOrder.algo_order_id,
             quantity: numQty,
           };
@@ -247,28 +284,9 @@ export function usePositionTSL(
           if (position.margin_mode !== undefined) {
             updatePayload.margin_mode = position.margin_mode;
           }
-          res = await doUpdateOrder(updatePayload);
-
-          // If update failed due to backend tick validator or parameter switching restriction,
-          // cancel the old order and create a fresh one with the new parameters
-          if (res && res.success === false) {
-            const isTickOrParamError =
-              res.message?.includes("tick 0.01") ||
-              res.message?.includes("callback") ||
-              res.message?.includes("order_id");
-
-            if (isTickOrParamError) {
-              const delRes = await doDeleteOrder(null, {
-                order_id: activeTSLOrder.algo_order_id,
-                symbol: position.symbol,
-              });
-              if (delRes?.success !== false) {
-                res = await doCreateOrder(payload);
-              }
-            }
-          }
+          res = (await doUpdateOrder(updatePayload)) as MutationResponse;
         } else {
-          res = await doCreateOrder(payload);
+          res = (await doCreateOrder(payload)) as MutationResponse;
         }
 
         if (res && res.success === false) {
@@ -282,11 +300,12 @@ export function usePositionTSL(
             : "Trailing Stop order placed successfully.",
         );
 
-        ee.emit("order:changed", { symbol: position.symbol });
         refresh?.();
         return true;
-      } catch (err: any) {
-        toast.error(err?.message || "Failed to submit Trailing Stop order.");
+      } catch (error: unknown) {
+        toast.error(
+          getErrorMessage(error, "Failed to submit Trailing Stop order."),
+        );
         return false;
       }
     },
@@ -296,8 +315,11 @@ export function usePositionTSL(
       activeTSLOrder,
       doCreateOrder,
       doUpdateOrder,
-      ee,
       refresh,
+      symbolInfo?.base_dp,
+      symbolInfo?.base_tick,
+      symbolInfo?.quote_dp,
+      symbolInfo?.quote_tick,
     ],
   );
 
@@ -321,15 +343,16 @@ export function usePositionTSL(
         }
 
         toast.success("Trailing Stop order cancelled.");
-        ee.emit("order:changed", { symbol: position.symbol });
         refresh?.();
         return true;
-      } catch (err: any) {
-        toast.error(err?.message || "Failed to cancel Trailing Stop order.");
+      } catch (error: unknown) {
+        toast.error(
+          getErrorMessage(error, "Failed to cancel Trailing Stop order."),
+        );
         return false;
       }
     },
-    [activeTSLOrder, position?.symbol, doDeleteOrder, ee, refresh],
+    [activeTSLOrder, position?.symbol, doDeleteOrder, refresh],
   );
 
   return {

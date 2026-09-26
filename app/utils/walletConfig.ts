@@ -1,5 +1,9 @@
-import { CreateConnectorFn } from "wagmi";
-import { injected, walletConnect } from "wagmi/connectors";
+import binanceWallet from "@binance/w3w-blocknative-connector";
+import {
+  createDefaultAddressSelector,
+  createDefaultAuthorizationResultCache,
+  SolanaMobileWalletAdapter,
+} from "@solana-mobile/wallet-adapter-mobile";
 import {
   Adapter,
   WalletError,
@@ -11,20 +15,16 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
-import {
-  createDefaultAddressSelector,
-  createDefaultAuthorizationResultCache,
-  SolanaMobileWalletAdapter,
-} from "@solana-mobile/wallet-adapter-mobile";
-import type { NetworkId } from "@orderly.network/types";
 import injectedOnboard from "@web3-onboard/injected-wallets";
-import { getRuntimeConfig } from "./runtime-config";
 import walletConnectOnboard from "@web3-onboard/walletconnect";
-import binanceWallet from "@binance/w3w-blocknative-connector";
+import { CreateConnectorFn } from "wagmi";
+import { injected, walletConnect } from "wagmi/connectors";
+import type { NetworkId } from "@orderly.network/types";
+import { getRuntimeConfig } from "./runtime-config";
 
 export const getEvmConnectors = (): CreateConnectorFn[] => {
   const walletConnectProjectId = getRuntimeConfig(
-    "VITE_WALLETCONNECT_PROJECT_ID"
+    "VITE_WALLETCONNECT_PROJECT_ID",
   );
   const isBrowser = typeof window !== "undefined";
 
@@ -36,13 +36,13 @@ export const getEvmConnectors = (): CreateConnectorFn[] => {
         projectId: walletConnectProjectId,
         showQrModal: true,
         metadata: {
-          name: getRuntimeConfig("VITE_APP_NAME") || "Orderly App",
+          name: getRuntimeConfig("VITE_APP_NAME") || "ROTA",
           description:
-            getRuntimeConfig("VITE_APP_DESCRIPTION") || "Orderly Application",
+            getRuntimeConfig("VITE_APP_DESCRIPTION") || "ROTA trading platform",
           url: window.location.origin,
           icons: [`${window.location.origin}/favicon.webp`],
         },
-      })
+      }),
     );
   }
 
@@ -89,7 +89,7 @@ export const getSolanaConfig = (networkId: NetworkId) => {
 
 export const getOnboardEvmWallets = () => {
   const walletConnectProjectId = getRuntimeConfig(
-    "VITE_WALLETCONNECT_PROJECT_ID"
+    "VITE_WALLETCONNECT_PROJECT_ID",
   );
   const isBrowser = typeof window !== "undefined";
 

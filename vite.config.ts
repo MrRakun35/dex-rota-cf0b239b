@@ -1,29 +1,28 @@
-import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import tsconfigPaths from "vite-tsconfig-paths";
-import { cjsInterop } from "vite-plugin-cjs-interop";
-import { nodePolyfills } from "vite-plugin-node-polyfills";
 import fs from "fs";
 import path from "path";
+import { defineConfig, Plugin } from "vite";
+import { cjsInterop } from "vite-plugin-cjs-interop";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
+import tsconfigPaths from "vite-tsconfig-paths";
 
 function loadConfigTitle(): string {
   try {
     const configPath = path.join(__dirname, "public/config.js");
     if (!fs.existsSync(configPath)) {
-      return "Orderly Network";
+      return "ROTA.finance";
     }
 
     const configText = fs.readFileSync(configPath, "utf-8");
-    const jsonText = configText
-      .replace(/window\.__RUNTIME_CONFIG__\s*=\s*/, "")
-      .replace(/;$/, "")
-      .trim();
-
-    const config = JSON.parse(jsonText);
-    return config.VITE_ORDERLY_BROKER_NAME || "Orderly Network";
+    const runtimeWindow: { __RUNTIME_CONFIG__?: Record<string, string> } = {};
+    const config = Function(
+      "window",
+      `"use strict";\n${configText}\nreturn window.__RUNTIME_CONFIG__;`,
+    )(runtimeWindow) as Record<string, string>;
+    return config.VITE_ORDERLY_BROKER_NAME || "ROTA.finance";
   } catch (error) {
     console.warn("Failed to load title from config.js:", error);
-    return "Orderly Network";
+    return "ROTA.finance";
   }
 }
 

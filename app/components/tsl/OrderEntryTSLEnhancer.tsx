@@ -1,12 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   usePositionStream,
   useSymbolsInfo,
-  useMarkPrice,
   useEventEmitter,
+  useMarkPrice,
 } from "@orderly.network/hooks";
+import { OrderSide, OrderStatus } from "@orderly.network/types";
 import { Switch, Input, Grid, Flex, cn, toast } from "@orderly.network/ui";
+import {
+  activationPriceError,
+  floorToTick,
+  getErrorMessage,
+  normalizeCallbackPercent,
+} from "./tsl-utils";
 import { usePositionTSL } from "./usePositionTSL";
 
 interface OrderEntryTSLEnhancerProps {
@@ -28,14 +35,15 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
   const symbolInfoMap = useSymbolsInfo();
   const symbolInfo = symbol ? symbolInfoMap[symbol]?.() : undefined;
   const quoteToken = symbolInfo?.quote ?? "USDC";
-  const quoteDp = symbolInfo?.quote_dp ?? 2;
   const { data: markPrice } = useMarkPrice(symbol);
 
   // Position stream to track when position opens or changes
   const [positionsData] = usePositionStream("all");
-  const currentPos = positionsData?.rows?.find((p: any) => p.symbol === symbol);
+  const currentPos = positionsData?.rows?.find(
+    (position) => position.symbol === symbol,
+  );
   const currentPosQty = Math.abs(Number(currentPos?.position_qty ?? 0));
-  const prevPosQtyRef = useRef<number>(currentPosQty);
+  const currentSignedQty = Number(currentPos?.position_qty ?? 0);
 
   // TSL submission hook
   const { submitTSL } = usePositionTSL(currentPos ?? undefined);
@@ -47,18 +55,66 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
     callbackRate: number;
     activatedPrice?: number;
     closePercent: number;
+    side: OrderSide;
+    initialPositionQty: number;
+    expiresAt: number;
+    fillSeen: boolean;
   } | null>(null);
+  const [fillRevision, setFillRevision] = useState(0);
+
+  // Helper to detect if Order Entry is currently on LIMIT or MARKET
+  const isLimitOrMarket = useCallback((): boolean => {
+    if (typeof document === "undefined") return false;
+
+    const allTpsl = document.querySelectorAll(".oui-orderEntry-tpsl");
+    for (let i = 0; i < allTpsl.length; i++) {
+      if (!allTpsl[i].closest("#order-entry-tsl-host")) return true;
+    }
+
+    const limitBtn = document.querySelector(
+      '[data-testid="oui-testid-orderEntry-orderType-limit"]',
+    );
+    if (limitBtn?.getAttribute("aria-pressed") === "true") return true;
+
+    const marketBtn = document.querySelector(
+      '[data-testid="oui-testid-orderEntry-orderType-market"]',
+    );
+    if (marketBtn?.getAttribute("aria-pressed") === "true") return true;
+
+    const mobileBtn = document.querySelector(
+      '[data-testid="oui-testid-orderEntry-orderType-button"]',
+    );
+    if (mobileBtn) {
+      const text = (mobileBtn.textContent || "").toLowerCase();
+      return (
+        (text.includes("limit") ||
+          text.includes("market") ||
+          text.includes("piyasa")) &&
+        !text.includes("stop") &&
+        !text.includes("scaled") &&
+        !text.includes("trailing")
+      );
+    }
+
+    return false;
+  }, []);
 
   // Keep armed state updated while TSL is enabled
   useEffect(() => {
     if (tslEnabled) {
       const rateNum = Number(callbackRate);
       if (!isNaN(rateNum) && rateNum >= 0.1 && rateNum <= 5.0) {
-        armedParamsRef.current = {
-          callbackRate: Number(rateNum.toFixed(1)),
-          activatedPrice: activatedPrice ? Number(activatedPrice) : undefined,
-          closePercent: selectedPercent,
-        };
+        const existing = armedParamsRef.current;
+        armedParamsRef.current = existing
+          ? {
+              ...existing,
+              callbackRate: Number(rateNum.toFixed(1)),
+              activatedPrice: activatedPrice
+                ? Number(activatedPrice)
+                : undefined,
+              closePercent: selectedPercent,
+            }
+          : null;
       }
     } else {
       armedParamsRef.current = null;
@@ -75,24 +131,56 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
       if (!target) return;
 
       // Check if clicked element is inside order entry submit section
-      const submitBtn = target.closest("button");
+      const submitBtn = target.closest<HTMLButtonElement>(
+        "#order-entry-submit-button",
+      );
       if (!submitBtn) return;
 
-      const btnText = (submitBtn.textContent || "").trim();
-      const isSubmitBtn =
-        btnText.includes("Buy") ||
-        btnText.includes("Sell") ||
-        btnText.includes("Satın Al") ||
-        btnText.includes("Sat") ||
-        btnText.includes("Uzun") ||
-        btnText.includes("Kısa");
+      if (!submitBtn.disabled && tslEnabled && isLimitOrMarket()) {
+        const normalizedRate = normalizeCallbackPercent(callbackRate);
+        const side = submitBtn.classList.contains(
+          "orderly-order-entry-submit-button-buy",
+        )
+          ? OrderSide.BUY
+          : submitBtn.classList.contains(
+                "orderly-order-entry-submit-button-sell",
+              )
+            ? OrderSide.SELL
+            : undefined;
+        const activationNumber = activatedPrice
+          ? Number(activatedPrice)
+          : undefined;
+        const currentMark = Number(
+          markPrice || currentPos?.mark_price || currentPos?.average_open_price,
+        );
+        const activationError =
+          activationNumber !== undefined &&
+          (!Number.isFinite(activationNumber) || activationNumber <= 0)
+            ? "Please enter a valid activation price."
+            : activationNumber !== undefined && currentMark > 0 && side
+              ? side === OrderSide.BUY && activationNumber <= currentMark
+                ? "For a long position, activation price must be above mark price."
+                : side === OrderSide.SELL && activationNumber >= currentMark
+                  ? "For a short position, activation price must be below mark price."
+                  : undefined
+              : activationPriceError(activatedPrice, currentPos, currentMark);
+        if (normalizedRate === undefined || !side || activationError) {
+          toast.error(
+            activationError ||
+              "Check the TSL rate before submitting the order.",
+          );
+          return;
+        }
 
-      if (
-        isSubmitBtn &&
-        tslEnabled &&
-        armedParamsRef.current &&
-        isLimitOrMarket()
-      ) {
+        armedParamsRef.current = {
+          callbackRate: normalizedRate,
+          activatedPrice: activatedPrice ? Number(activatedPrice) : undefined,
+          closePercent: selectedPercent,
+          side,
+          initialPositionQty: currentSignedQty,
+          expiresAt: Date.now() + 120_000,
+          fillSeen: false,
+        };
         isArmedRef.current = true;
       }
     };
@@ -101,93 +189,109 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
     return () => {
       document.removeEventListener("click", handleOrderSubmitClick, true);
     };
-  }, [tslEnabled]);
+  }, [
+    activatedPrice,
+    callbackRate,
+    currentPos,
+    currentSignedQty,
+    isLimitOrMarket,
+    markPrice,
+    selectedPercent,
+    tslEnabled,
+  ]);
 
-  // Helper to detect if Order Entry is currently on LIMIT or MARKET
-  const isLimitOrMarket = useCallback((): boolean => {
-    if (typeof document === "undefined") return false;
-
-    // 1. Check if Orderly's NATIVE TP/SL container is present in the DOM (not our own TSL host)
-    const allTpsl = document.querySelectorAll(".oui-orderEntry-tpsl");
-    for (let i = 0; i < allTpsl.length; i++) {
-      // Skip elements that are inside our own TSL portal host
-      if (!allTpsl[i].closest("#order-entry-tsl-host")) {
-        return true;
+  // Arm only becomes executable after Orderly reports an actual fill. A click
+  // alone is insufficient because the order can be rejected or cancelled in a
+  // confirmation dialog.
+  useEffect(() => {
+    const handleOrderChange = (event: unknown) => {
+      const order = event as {
+        symbol?: string;
+        side?: OrderSide;
+        status?: OrderStatus | string;
+      };
+      const armed = armedParamsRef.current;
+      if (!armed || !isArmedRef.current) return;
+      if (Date.now() > armed.expiresAt) {
+        armedParamsRef.current = null;
+        isArmedRef.current = false;
+        return;
       }
-    }
-
-    // 2. Check desktop order type tabs
-    const limitBtn = document.querySelector(
-      '[data-testid="oui-testid-orderEntry-orderType-limit"]',
-    );
-    if (limitBtn?.getAttribute("aria-pressed") === "true") return true;
-
-    const marketBtn = document.querySelector(
-      '[data-testid="oui-testid-orderEntry-orderType-market"]',
-    );
-    if (marketBtn?.getAttribute("aria-pressed") === "true") return true;
-
-    // 3. Check mobile order type select
-    const mobileBtn = document.querySelector(
-      '[data-testid="oui-testid-orderEntry-orderType-button"]',
-    );
-    if (mobileBtn) {
-      const text = (mobileBtn.textContent || "").toLowerCase();
       if (
-        (text.includes("limit") ||
-          text.includes("market") ||
-          text.includes("piyasa")) &&
-        !text.includes("stop") &&
-        !text.includes("scaled") &&
-        !text.includes("trailing")
+        order.symbol === symbol &&
+        order.side === armed.side &&
+        (order.status === OrderStatus.FILLED ||
+          order.status === OrderStatus.PARTIAL_FILLED)
       ) {
-        return true;
+        armed.fillSeen = true;
+        setFillRevision((value) => value + 1);
       }
-    }
+    };
 
-    return false;
-  }, []);
+    ee.on("orders:changed", handleOrderChange);
+    return () => {
+      ee.off("orders:changed", handleOrderChange);
+    };
+  }, [ee, symbol]);
 
   // Watch for position updates and automatically attach TSL when armed
   useEffect(() => {
-    const prevQty = prevPosQtyRef.current;
-    prevPosQtyRef.current = currentPosQty;
+    const armed = armedParamsRef.current;
+    if (!armed || !isArmedRef.current || !armed.fillSeen) return;
+    if (Date.now() > armed.expiresAt) {
+      armedParamsRef.current = null;
+      isArmedRef.current = false;
+      return;
+    }
 
-    // Detect when position was opened or increased while armed
-    if (
-      isArmedRef.current &&
-      armedParamsRef.current &&
-      currentPos &&
-      currentPosQty > 0 &&
-      (prevQty === 0 || currentPosQty > prevQty)
-    ) {
+    const exposureIncreased =
+      (armed.side === OrderSide.BUY &&
+        currentSignedQty > 0 &&
+        currentSignedQty > armed.initialPositionQty) ||
+      (armed.side === OrderSide.SELL &&
+        currentSignedQty < 0 &&
+        currentSignedQty < armed.initialPositionQty);
+
+    if (currentPos && currentPosQty > 0 && exposureIncreased) {
       const {
         callbackRate: rate,
         activatedPrice: actPrice,
         closePercent,
-      } = armedParamsRef.current;
+      } = armed;
 
-      const targetQty = currentPosQty * (closePercent / 100);
+      const targetQty = floorToTick(
+        currentPosQty * (closePercent / 100),
+        symbolInfo?.base_tick || 0.00000001,
+        symbolInfo?.base_dp ?? 8,
+      );
       if (targetQty > 0) {
         // Disarm to prevent duplicate submissions
         isArmedRef.current = false;
 
-        submitTSL({
+        void submitTSL({
           callbackRate: rate,
           quantity: targetQty,
           activatedPrice: actPrice,
-        }).then((success) => {
-          if (success) {
-            toast.success(
-              `Trailing Stop Loss (TSL ${rate}%) attached to position successfully.`,
-            );
-            // Optionally reset or keep for next order
-            setTslEnabled(false);
-          }
-        });
+        })
+          .then((success) => {
+            if (success) {
+              setTslEnabled(false);
+            }
+          })
+          .catch((error: unknown) => {
+            toast.error(getErrorMessage(error, "Failed to attach TSL."));
+          });
       }
     }
-  }, [currentPosQty, currentPos, submitTSL]);
+  }, [
+    currentPos,
+    currentPosQty,
+    currentSignedQty,
+    fillRevision,
+    submitTSL,
+    symbolInfo?.base_dp,
+    symbolInfo?.base_tick,
+  ]);
 
   // Inject into DOM beside/under Order Entry TP/SL only when order type is LIMIT or MARKET
   useEffect(() => {

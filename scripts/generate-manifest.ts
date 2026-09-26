@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -20,7 +20,7 @@ interface Colors {
 function rgbToHex(
   r: string | number,
   g: string | number,
-  b: string | number
+  b: string | number,
 ): string {
   return (
     "#" +
@@ -45,10 +45,10 @@ function extractCSSColors(): Colors {
     const cssContent = readFileSync(themePath, "utf-8");
 
     const base7Match = cssContent.match(
-      /--oui-color-base-7:\s*(\d+)\s+(\d+)\s+(\d+)/
+      /--oui-color-base-7:\s*(\d+)\s+(\d+)\s+(\d+)/,
     );
     const primaryMatch = cssContent.match(
-      /--oui-color-primary:\s*(\d+)\s+(\d+)\s+(\d+)/
+      /--oui-color-primary:\s*(\d+)\s+(\d+)\s+(\d+)/,
     );
 
     const backgroundColor = base7Match
@@ -60,7 +60,7 @@ function extractCSSColors(): Colors {
       : "#000000";
 
     console.log(
-      `✓ Extracted colors from theme.css: bg=${backgroundColor}, theme=${themeColor}`
+      `✓ Extracted colors from theme.css: bg=${backgroundColor}, theme=${themeColor}`,
     );
 
     return { backgroundColor, themeColor };
@@ -80,12 +80,11 @@ function loadConfig(): Config {
 
   try {
     const configText = readFileSync(configPath, "utf-8");
-    const jsonText = configText
-      .replace(/window\.__RUNTIME_CONFIG__\s*=\s*/, "")
-      .replace(/;$/, "")
-      .trim();
-
-    const config = JSON.parse(jsonText) as Config;
+    const runtimeWindow: { __RUNTIME_CONFIG__?: Config } = {};
+    const config = Function(
+      "window",
+      `"use strict";\n${configText}\nreturn window.__RUNTIME_CONFIG__;`,
+    )(runtimeWindow) as Config;
     console.log("✓ Loaded config from public/config.js");
     return config;
   } catch (error) {
@@ -121,11 +120,11 @@ function generateManifest() {
   const startUrl = withBasePath("/", basePath);
 
   const manifest = {
-    name: config.VITE_APP_NAME || "Orderly DEX",
-    short_name: config.VITE_APP_NAME || "Orderly DEX",
+    name: config.VITE_APP_NAME || "ROTA.finance",
+    short_name: config.VITE_APP_NAME || "ROTA",
     description:
       config.VITE_APP_DESCRIPTION ||
-      "A powerful perpetual trading DEX powered by Orderly Network",
+      "A fast, non-custodial perpetual trading experience by ROTA",
     start_url: startUrl,
     scope: basePath,
     display: "standalone",

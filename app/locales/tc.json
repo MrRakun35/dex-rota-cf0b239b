@@ -1,7 +1,7 @@
 {
-  "extend.tradingRewards.description": "透過 Orderly 交易以賺取 ORDER",
+  "extend.tradingRewards.description": "透過 ROTA 交易以賺取 ORDER",
   "extend.affiliate.tag": "40% 返佣",
-  "extend.affiliate.description": "成為 Orderly 推廣夥伴，賺取更多收益",
+  "extend.affiliate.description": "成為 ROTA 推廣夥伴，賺取更多收益",
   "extend.staking": "質押",
   "extend.staking.description": "質押 ORDER/esORDER 以獲得 VALOR",
   "extend.swap": "兌換",

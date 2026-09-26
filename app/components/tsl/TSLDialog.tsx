@@ -1,15 +1,20 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { API, OrderSide, MarginMode } from "@orderly.network/types";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { API, MarginMode } from "@orderly.network/types";
 import {
   SimpleDialog,
   Button,
   Input,
-  Text,
   Flex,
   Grid,
   Divider,
   cn,
 } from "@orderly.network/ui";
+import {
+  activationPriceError,
+  floorToTick,
+  normalizeCallbackPercent,
+  roundToTick,
+} from "./tsl-utils";
 import { usePositionTSL } from "./usePositionTSL";
 
 export interface TSLDialogProps {
@@ -55,10 +60,17 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
   const [selectedPercent, setSelectedPercent] = useState<number>(100);
   const [quantity, setQuantity] = useState<string>(totalQty.toString());
   const [activatedPrice, setActivatedPrice] = useState<string>("");
+  const initializedDialogRef = useRef<string | null>(null);
 
   // Sync existing active order values or default
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedDialogRef.current = null;
+      return;
+    }
+    const initializationKey = `${position?.symbol}:${activeTSLOrder?.algo_order_id ?? "new"}`;
+    if (initializedDialogRef.current === initializationKey) return;
+    initializedDialogRef.current = initializationKey;
 
     if (activeTSLOrder) {
       let activeRatePercent = initialCallbackRate || "1.0";
@@ -66,13 +78,19 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
         activeRatePercent = (
           Number(activeTSLOrder.callback_rate) * 100
         ).toFixed(1);
-      } else if (activeTSLOrder.callback_value && currentMarkPrice > 0) {
+      } else if (activeTSLOrder.callback_value) {
+        const referencePrice = Number(
+          activeTSLOrder.extreme_price ||
+            activeTSLOrder.activated_price ||
+            entryPrice,
+        );
         const calculatedRate =
-          (Number(activeTSLOrder.callback_value) / currentMarkPrice) * 100;
-        activeRatePercent = Math.max(
-          0.1,
-          Math.min(5.0, Number(calculatedRate.toFixed(1))),
-        ).toFixed(1);
+          referencePrice > 0
+            ? (Number(activeTSLOrder.callback_value) / referencePrice) * 100
+            : 1;
+        activeRatePercent = Math.max(0.1, Math.min(5, calculatedRate)).toFixed(
+          1,
+        );
       }
       setCallbackRate(activeRatePercent);
 
@@ -94,7 +112,15 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
       setQuantity(totalQty ? totalQty.toFixed(baseDp) : "0");
       setActivatedPrice("");
     }
-  }, [open, activeTSLOrder, totalQty, baseDp, initialCallbackRate]);
+  }, [
+    open,
+    position?.symbol,
+    activeTSLOrder,
+    totalQty,
+    baseDp,
+    initialCallbackRate,
+    entryPrice,
+  ]);
 
   // Handle quantity percentage click
   const handlePercentClick = (percent: number) => {
@@ -118,23 +144,62 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
 
   // Validation
   const rateNum = Number(callbackRate);
-  const isRateValid = !isNaN(rateNum) && rateNum >= 0.1 && rateNum <= 5.0;
+  const normalizedRate = normalizeCallbackPercent(rateNum);
+  const isRateValid = normalizedRate !== undefined;
 
   const qtyNum = Number(quantity);
-  const isQtyValid = !isNaN(qtyNum) && qtyNum > 0 && qtyNum <= totalQty;
+  const normalizedQty = floorToTick(qtyNum, baseTick, baseDp);
+  const isQtyValid =
+    Number.isFinite(normalizedQty) &&
+    normalizedQty > 0 &&
+    normalizedQty <= totalQty;
 
-  const canSubmit = isRateValid && isQtyValid && !isMutating;
+  const activationError = activationPriceError(
+    activeTSLOrder?.is_activated ? "" : activatedPrice,
+    activeTSLOrder?.is_activated ? undefined : position,
+    activeTSLOrder?.is_activated ? undefined : currentMarkPrice,
+  );
+  const pendingActivationRequired = Boolean(
+    activeTSLOrder?.activated_price &&
+    !activeTSLOrder.is_activated &&
+    !activatedPrice,
+  );
+
+  const canSubmit =
+    isRateValid &&
+    isQtyValid &&
+    !activationError &&
+    !pendingActivationRequired &&
+    !isMutating;
 
   // Live trigger & estimated PnL calculation
   const estInitialTriggerPrice = useMemo(() => {
     if (!currentMarkPrice || !isRateValid) return null;
-    const rateRatio = Number(rateNum.toFixed(1)) / 100;
-    if (isLong) {
-      return currentMarkPrice * (1 - rateRatio);
-    } else {
-      return currentMarkPrice * (1 + rateRatio);
+    const rateRatio = (normalizedRate ?? 0) / 100;
+    const activationReference = activatedPrice
+      ? roundToTick(
+          Number(activatedPrice),
+          symbolInfo?.quote_tick || 0.01,
+          quoteDp,
+        )
+      : currentMarkPrice;
+    if (!activationReference || !Number.isFinite(activationReference)) {
+      return null;
     }
-  }, [currentMarkPrice, isRateValid, rateNum, isLong]);
+    if (isLong) {
+      return activationReference * (1 - rateRatio);
+    } else {
+      return activationReference * (1 + rateRatio);
+    }
+  }, [
+    activatedPrice,
+    currentMarkPrice,
+    isLong,
+    isRateValid,
+    normalizedRate,
+    quoteDp,
+    symbolInfo?.quote_tick,
+  ]);
 
   const estPnL = useMemo(() => {
     if (!estInitialTriggerPrice || !entryPrice || !qtyNum) return null;
@@ -150,7 +215,7 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
     if (!canSubmit) return;
     const success = await submitTSL({
       callbackRate: Number(rateNum.toFixed(1)),
-      quantity: qtyNum,
+      quantity: normalizedQty,
       activatedPrice: activatedPrice ? Number(activatedPrice) : undefined,
     });
     if (success) {
@@ -366,6 +431,10 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
           </Flex>
 
           <Input
+            type="number"
+            min={baseTick.toString()}
+            max={totalQty.toString()}
+            step={baseTick.toString()}
             value={quantity}
             onValueChange={handleQuantityChange}
             placeholder="0.0"
@@ -421,8 +490,12 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
           </Flex>
 
           <Input
+            type="number"
+            min={(symbolInfo?.quote_tick || 0.01).toString()}
+            step={(symbolInfo?.quote_tick || 0.01).toString()}
             value={activatedPrice}
             onValueChange={setActivatedPrice}
+            disabled={Boolean(activeTSLOrder?.is_activated)}
             placeholder={
               currentMarkPrice
                 ? currentMarkPrice.toFixed(quoteDp)
@@ -434,7 +507,10 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
               </span>
             }
             classNames={{
-              root: "oui-h-9 oui-bg-base-7 oui-border oui-border-line-12 focus-within:oui-border-primary oui-rounded",
+              root: cn(
+                "oui-h-9 oui-bg-base-7 oui-border oui-border-line-12 focus-within:oui-border-primary oui-rounded",
+                activationError && "oui-border-trade-loss",
+              ),
               input:
                 "oui-text-xs oui-text-base-contrast [font-family:var(--oui-font-family)]",
             }}
@@ -444,6 +520,16 @@ export const TSLDialog: React.FC<TSLDialogProps> = ({
               ? "Trailing starts once mark price reaches or rises above this level."
               : "Trailing starts once mark price reaches or drops below this level."}
           </span>
+          {activationError && (
+            <span className="oui-text-2xs oui-text-trade-loss">
+              {activationError}
+            </span>
+          )}
+          {pendingActivationRequired && (
+            <span className="oui-text-2xs oui-text-trade-loss">
+              Activation price is required while this TSL is pending.
+            </span>
+          )}
         </div>
 
         <Divider className="oui-w-full oui-my-1" />

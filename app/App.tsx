@@ -11,6 +11,8 @@ export default function App() {
   const defaultLanguage = getUserLanguage();
   const location = useLocation();
   const isInitialLoad = useRef(true);
+  const routeSection =
+    location.pathname.split("/").filter(Boolean)[0] || "root";
 
   useEffect(() => {
     if (isInitialLoad.current) {
@@ -40,7 +42,7 @@ export default function App() {
       </Helmet>
       <HttpsRequiredWarning />
       <OrderlyProvider>
-        <Outlet />
+        <Outlet key={routeSection} />
       </OrderlyProvider>
     </>
   );
