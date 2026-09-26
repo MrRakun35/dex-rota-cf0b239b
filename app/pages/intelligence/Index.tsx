@@ -146,7 +146,7 @@ const money = (value: unknown, compact = true) => {
 const percent = (value: unknown, scale = 100) =>
   `${(number(value) * scale).toFixed(4)}%`;
 const cleanSymbol = (symbol: string) =>
-  symbol.replace(/^PERP_/, "").replace(/_USDC$/, "");
+  symbol.replace(/^PERP_/, "").replace(/_USDC(?:[._].*)?$/, "");
 
 function Skeleton({ rows = 5 }: { rows?: number }) {
   return (
@@ -1225,12 +1225,10 @@ export default function IntelligencePage() {
       const bids = detail?.data.orderbook?.bids || [];
       const depthRows = (side: typeof asks, reverse = false) => {
         let sum = 0;
-        const rows = side
-          .slice(0, 20)
-          .map((row) => ({
-            label: money(row.price, false),
-            value: (sum += number(row.price) * number(row.quantity)),
-          }));
+        const rows = side.slice(0, 20).map((row) => ({
+          label: money(row.price, false),
+          value: (sum += number(row.price) * number(row.quantity)),
+        }));
         return reverse ? rows.reverse() : rows;
       };
       return (
