@@ -294,6 +294,12 @@ export const useOrderlyConfig = () => {
         isDefault: true,
       },
       {
+        id: "Intelligence",
+        href: "/intelligence",
+        name: "Market Intelligence",
+        isDefault: true,
+      },
+      {
         id: "CopyTrade",
         href: "/copy-trade",
         name: "Copy Trade",

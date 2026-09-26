@@ -38,6 +38,8 @@ const PointsLayout = lazy(() => import("./pages/points/Layout"));
 const PointsIndex = lazy(() => import("./pages/points/Index"));
 const TermsLayout = lazy(() => import("./pages/terms/Layout"));
 const TermsIndex = lazy(() => import("./pages/terms/Index"));
+const IntelligenceLayout = lazy(() => import("./pages/intelligence/Layout"));
+const IntelligenceIndex = lazy(() => import("./pages/intelligence/Index"));
 
 async function loadRuntimeConfig() {
   return new Promise<void>((resolve) => {
@@ -91,6 +93,11 @@ const router = createBrowserRouter(
           path: "markets",
           element: <MarketsLayout />,
           children: [{ index: true, element: <MarketsIndex /> }],
+        },
+        {
+          path: "intelligence",
+          element: <IntelligenceLayout />,
+          children: [{ index: true, element: <IntelligenceIndex /> }],
         },
         {
           path: "leaderboard",

@@ -45,6 +45,20 @@ export default defineConfig(() => {
     server: {
       open: true,
       host: true,
+      proxy: {
+        "/copy-api": {
+          target: "https://copy.algobotapp.com",
+          changeOrigin: true,
+          rewrite: (requestPath) => requestPath.replace(/^\/copy-api/, ""),
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyRequest) => {
+              // This is a same-origin browser request to Vite. Do not forward
+              // the local development origin to the production CORS gate.
+              proxyRequest.removeHeader("origin");
+            });
+          },
+        },
+      },
     },
     base: basePath,
     plugins: [
