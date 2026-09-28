@@ -447,13 +447,16 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                   onChange={(e) => setMaxNotional(e.target.value)}
                 />
               </Field>
-              <label className="rota-bots__check">
+              <label
+                className="rota-bots__check"
+                title="Only reduces an existing position; it cannot increase or reverse your exposure."
+              >
                 <input
                   type="checkbox"
                   checked={reduceOnly}
                   onChange={(e) => setReduceOnly(e.target.checked)}
                 />{" "}
-                Reduce only
+                Reduce only (close position)
               </label>
             </div>
           ) : (
@@ -465,7 +468,6 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                 >
                   <option>LONG</option>
                   <option>SHORT</option>
-                  <option>BOTH</option>
                 </select>
               </Field>
               <Field label={`Order size per grid (${baseAsset})`}>
@@ -568,8 +570,8 @@ export function BotPanel({ symbol }: { symbol?: string }) {
             </div>
           )}
           <div className="rota-bots__warning">
-            <AlertTriangle size={14} /> Start with DRY_RUN and small limits.
-            Bots continue while this browser is closed.
+            <AlertTriangle size={14} /> Bots continue while this browser is
+            closed.
           </div>
           <button
             className="rota-bots__submit"
