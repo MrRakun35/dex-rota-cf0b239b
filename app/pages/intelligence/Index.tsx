@@ -998,7 +998,7 @@ export default function IntelligencePage() {
             note="Wallets are shortened"
             className="mi-full-card"
           >
-            <div className="mi-table-wrap">
+            <div className="mi-table-wrap mi-themed-scroll">
               <table>
                 <thead>
                   <tr>
@@ -1287,7 +1287,7 @@ export default function IntelligencePage() {
           title="Perpetual Market Screener"
           note={`${filteredMarkets.length} active markets`}
         >
-          <div className="mi-table-wrap">
+          <div className="mi-table-wrap mi-themed-scroll">
             <table>
               <thead>
                 <tr>
