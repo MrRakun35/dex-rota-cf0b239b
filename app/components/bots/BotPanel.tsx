@@ -242,6 +242,13 @@ export function BotPanel({ symbol }: { symbol?: string }) {
         throw new Error(
           "Current mark price is required for USDC distance mode.",
         );
+      if (
+        kind === "MARKET_MAKER" &&
+        Number(maxInventory) < Number(quantity) * 2
+      )
+        throw new Error(
+          "Max inventory must cover the base position and one additional grid entry (at least 2× order size).",
+        );
       const token = await authorize();
       const base = { version: 1, leverage: Number(leverage) };
       const config =
@@ -320,6 +327,7 @@ export function BotPanel({ symbol }: { symbol?: string }) {
         await deleteBot(item.id, token);
         setBots((current) => current.filter((bot) => bot.id !== item.id));
       } else {
+        let closePosition = false;
         if (
           action === "stop" &&
           !window.confirm(
@@ -327,7 +335,14 @@ export function BotPanel({ symbol }: { symbol?: string }) {
           )
         )
           return;
-        const updated = await setBotStatus(item.id, action, token);
+        if (action === "stop" && item.kind === "MARKET_MAKER") {
+          closePosition = window.confirm(
+            "Close the bot's tracked position at market price as well?\n\nOK: cancel bot orders and close its position.\nCancel: cancel bot orders but leave the position open.",
+          );
+        }
+        const updated = await setBotStatus(item.id, action, token, {
+          closePosition,
+        });
         setBots((current) =>
           current.map((bot) =>
             bot.id === item.id ? { ...bot, ...updated } : bot,
@@ -524,7 +539,10 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                   onChange={(e) => setFeeBuffer(e.target.value)}
                 />
               </Field>
-              <Field label={`Max inventory (${baseAsset})`}>
+              <Field
+                label={`Max inventory (${baseAsset})`}
+                note="At least 2× order size: base position + one grid entry."
+              >
                 <input
                   type="number"
                   min="0"
@@ -559,11 +577,12 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                 />
               </Field>
               <div className="rota-bots__flow-note rota-bots__flow-note--wide">
-                <strong>Fill-based grid flow</strong>
+                <strong>Always-in-market grid flow</strong>
                 <span>
-                  Every filled entry becomes its own lot. Rota then queues an
-                  equal-size reduce-only exit from that fill price using the
-                  target profit plus the fee buffer. Profit is targeted, not
+                  Rota first opens one order-size base position at market, then
+                  keeps a buy grid entry below and a reduce-only profit exit
+                  above. If every bot lot exits, it rebuilds the base position
+                  before placing the next grid. Profit is targeted, not
                   guaranteed; funding, fees and fast markets still carry risk.
                 </span>
               </div>
@@ -848,9 +867,13 @@ function BotExecutionLog({ bot }: { bot: TradingBot }) {
                   <td>
                     {order.purpose === "twap_slice"
                       ? "TWAP slice"
-                      : order.purpose === "entry"
-                        ? "Grid entry"
-                        : "Profit exit"}
+                      : order.purpose === "bootstrap"
+                        ? "Base inventory"
+                        : order.purpose === "entry"
+                          ? "Grid entry"
+                          : order.purpose === "stop_close"
+                            ? "Stop close"
+                            : "Profit exit"}
                   </td>
                   <td className={`is-${order.side.toLowerCase()}`}>
                     {order.side}

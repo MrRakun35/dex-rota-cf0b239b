@@ -86,9 +86,11 @@ export function setBotStatus(
   id: string,
   action: "pause" | "resume" | "stop",
   token: string,
+  options?: { closePosition?: boolean },
 ) {
   return request<TradingBot>(`/v1/bots/${id}/${action}`, token, {
     method: "POST",
+    body: JSON.stringify({ close_position: options?.closePosition ?? false }),
   });
 }
 
