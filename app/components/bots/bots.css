@@ -430,3 +430,66 @@
 .rota-bots__check input {
   width: auto;
 }
+
+.rota-bots__dialog {
+  width: min(520px, calc(100vw - 28px));
+  color: rgb(var(--oui-color-base-foreground));
+}
+.rota-bots__dialog-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  border-left: 2px solid rgb(var(--oui-color-warning-light) / 0.7);
+  border-radius: 0 7px 7px 0;
+  background: rgb(var(--oui-color-warning) / 0.06);
+  padding: 10px 12px;
+  color: rgb(var(--oui-color-base-foreground) / 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.rota-bots__dialog-body svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: rgb(var(--oui-color-warning-light));
+}
+.rota-bots__dialog-body p,
+.rota-bots__dialog-note {
+  margin: 0;
+}
+.rota-bots__dialog-note {
+  margin-top: 10px;
+  color: rgb(var(--oui-color-base-foreground) / 0.54);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.rota-bots__dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.rota-bots__dialog-actions button {
+  border: 1px solid rgb(var(--oui-color-line) / 0.12);
+  border-radius: 7px;
+  background: rgb(var(--oui-color-base-7));
+  color: rgb(var(--oui-color-base-foreground) / 0.82);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.rota-bots__dialog-actions button.is-primary {
+  border-color: rgb(var(--oui-color-primary-light) / 0.3);
+  background: rgb(var(--oui-color-primary));
+  color: rgb(var(--oui-color-primary-contrast));
+}
+.rota-bots__dialog-actions button.is-danger {
+  border-color: rgb(var(--oui-color-danger-light) / 0.3);
+  background: rgb(var(--oui-color-danger) / 0.16);
+  color: rgb(var(--oui-color-danger-light));
+}
+.rota-bots__dialog-actions button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}

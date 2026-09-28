@@ -14,6 +14,12 @@ import {
 } from "lucide-react";
 import { useAccount, useMarkPrice } from "@orderly.network/hooks";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@orderly.network/ui";
+import {
   BotKind,
   createBot,
   deleteBot,
@@ -32,6 +38,10 @@ const cleanSymbol = (value?: string) =>
 
 type BotListView = "running" | "history";
 type SpreadUnit = "BPS" | "PERCENT" | "USDC";
+type PendingBotAction = {
+  bot: TradingBot;
+  action: "stop" | "delete";
+} | null;
 
 const isRunningBot = (bot: TradingBot) =>
   bot.status === "active" || bot.status === "paused";
@@ -94,6 +104,8 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   const [error, setError] = useState("");
   const [listView, setListView] = useState<BotListView>("running");
   const [expandedBotId, setExpandedBotId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingBotAction>(null);
+  const [actionSubmitting, setActionSubmitting] = useState(false);
 
   const [side, setSide] = useState("BUY");
   const [quantity, setQuantity] = useState("0.01");
@@ -310,36 +322,18 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   async function act(
     item: TradingBot,
     action: "pause" | "resume" | "stop" | "delete",
+    closePosition = false,
   ) {
     const token = localStorage.getItem(storageKey);
     if (!token) {
       setError("Your trading session expired. Start a bot to reconnect.");
-      return;
+      return false;
     }
     try {
       if (action === "delete") {
-        if (
-          !window.confirm(
-            "Stop this bot, cancel its open bot orders and delete its history?",
-          )
-        )
-          return;
         await deleteBot(item.id, token);
         setBots((current) => current.filter((bot) => bot.id !== item.id));
       } else {
-        let closePosition = false;
-        if (
-          action === "stop" &&
-          !window.confirm(
-            "Stop this bot and cancel its open orders? Its execution history will be retained.",
-          )
-        )
-          return;
-        if (action === "stop" && item.kind === "MARKET_MAKER") {
-          closePosition = window.confirm(
-            "Close the bot's tracked position at market price as well?\n\nOK: cancel bot orders and close its position.\nCancel: cancel bot orders but leave the position open.",
-          );
-        }
         const updated = await setBotStatus(item.id, action, token, {
           closePosition,
         });
@@ -354,8 +348,25 @@ export function BotPanel({ symbol }: { symbol?: string }) {
         }
       }
       await refresh();
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Bot action failed.");
+      return false;
+    }
+  }
+
+  async function confirmPendingAction(closePosition = false) {
+    if (!pendingAction || actionSubmitting) return;
+    setActionSubmitting(true);
+    try {
+      const succeeded = await act(
+        pendingAction.bot,
+        pendingAction.action,
+        closePosition,
+      );
+      if (succeeded) setPendingAction(null);
+    } finally {
+      setActionSubmitting(false);
     }
   }
 
@@ -714,7 +725,9 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                       {isRunningBot(item) ? (
                         <button
                           type="button"
-                          onClick={() => void act(item, "stop")}
+                          onClick={() =>
+                            setPendingAction({ bot: item, action: "stop" })
+                          }
                           title="Stop and keep history"
                         >
                           <Square size={13} />
@@ -722,7 +735,9 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => void act(item, "delete")}
+                          onClick={() =>
+                            setPendingAction({ bot: item, action: "delete" })
+                          }
                           title="Delete history permanently"
                         >
                           <Trash2 size={14} />
@@ -737,7 +752,90 @@ export function BotPanel({ symbol }: { symbol?: string }) {
           )}
         </div>
       </div>
+      <BotActionDialog
+        pending={pendingAction}
+        submitting={actionSubmitting}
+        onCancel={() => {
+          if (!actionSubmitting) setPendingAction(null);
+        }}
+        onConfirm={(closePosition) => void confirmPendingAction(closePosition)}
+      />
     </section>
+  );
+}
+
+function BotActionDialog({
+  pending,
+  submitting,
+  onCancel,
+  onConfirm,
+}: {
+  pending: PendingBotAction;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: (closePosition: boolean) => void;
+}) {
+  const isDelete = pending?.action === "delete";
+  const isMakerStop =
+    pending?.action === "stop" && pending.bot.kind === "MARKET_MAKER";
+
+  return (
+    <Dialog
+      open={Boolean(pending)}
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+    >
+      <DialogContent className="rota-bots__dialog oui-bg-base-8 oui-border oui-border-line-12">
+        <DialogHeader>
+          <DialogTitle>
+            {isDelete ? "Delete bot history?" : "Stop this bot?"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="rota-bots__dialog-body">
+          <AlertTriangle size={18} />
+          <p>
+            {isDelete
+              ? "The bot record and its execution history will be permanently deleted. Any tracked open bot orders are cancelled first."
+              : "The bot will stop running and all of its tracked open orders will be cancelled. Its execution history will be retained."}
+          </p>
+        </div>
+        {isMakerStop && (
+          <p className="rota-bots__dialog-note">
+            Choose whether the position accumulated by this bot should remain
+            open or be closed immediately at market price.
+          </p>
+        )}
+        <div className="rota-bots__dialog-actions">
+          <button type="button" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </button>
+          {isMakerStop && (
+            <button
+              type="button"
+              onClick={() => onConfirm(false)}
+              disabled={submitting}
+            >
+              Stop & keep position
+            </button>
+          )}
+          <button
+            type="button"
+            className={isDelete ? "is-danger" : "is-primary"}
+            onClick={() => onConfirm(isMakerStop)}
+            disabled={submitting}
+          >
+            {submitting
+              ? "Processing…"
+              : isDelete
+                ? "Delete permanently"
+                : isMakerStop
+                  ? "Stop & close position"
+                  : "Stop bot"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
