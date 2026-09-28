@@ -109,11 +109,13 @@ export function BotPanel({ symbol }: { symbol?: string }) {
 
   const [side, setSide] = useState("BUY");
   const [quantity, setQuantity] = useState("0.01");
+  const [twapTotalNotional, setTwapTotalNotional] = useState("600");
   const [durationMinutes, setDurationMinutes] = useState("30");
   const [intervalSeconds, setIntervalSeconds] = useState("30");
   const [style, setStyle] = useState("TAKER");
   const [reduceOnly, setReduceOnly] = useState(false);
   const [direction, setDirection] = useState("LONG");
+  const [gridLevels, setGridLevels] = useState("3");
   const [entrySpread, setEntrySpread] = useState("50");
   const [profitSpread, setProfitSpread] = useState("50");
   const [feeBuffer, setFeeBuffer] = useState("6");
@@ -129,6 +131,77 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   const visibleBots = bots.filter((bot) =>
     listView === "running" ? isRunningBot(bot) : !isRunningBot(bot),
   );
+  const twapSliceCount = Math.ceil(
+    (Number(durationMinutes) * 60) / Number(intervalSeconds),
+  );
+  const twapAmount = Number(twapTotalNotional);
+  const twapSliceNotional = twapAmount / twapSliceCount;
+  const twapEstimatedQuantity =
+    currentMarkPrice > 0 ? twapAmount / currentMarkPrice : 0;
+  const twapValidationError = useMemo(() => {
+    if (kind !== "TWAP") return "";
+    if (!Number.isFinite(twapAmount) || twapAmount <= 0)
+      return "Enter a valid total amount.";
+    if (currentMarkPrice <= 0)
+      return "Current mark price is required to calculate the order quantity.";
+    if (!Number.isFinite(twapSliceCount) || twapSliceCount <= 0)
+      return "Enter a valid duration and slice interval.";
+    if (twapSliceNotional < 10) {
+      return `Each slice must be at least 10 ${quoteAsset}. Increase the total amount to at least ${formatNumber(
+        twapSliceCount * 10,
+        2,
+      )} ${quoteAsset} or reduce the number of slices.`;
+    }
+    return "";
+  }, [
+    currentMarkPrice,
+    kind,
+    quoteAsset,
+    twapAmount,
+    twapSliceCount,
+    twapSliceNotional,
+  ]);
+  const makerValidationError = useMemo(() => {
+    if (kind !== "MARKET_MAKER") return "";
+    const levels = Number(gridLevels);
+    const orderSize = Number(quantity);
+    const inventory = Number(maxInventory);
+    const entryBPS = distanceToBPS(
+      Number(entrySpread),
+      spreadUnit,
+      currentMarkPrice,
+    );
+    if (!Number.isInteger(levels) || levels < 1 || levels > 5)
+      return "Grid levels must be a whole number between 1 and 5.";
+    if (!Number.isFinite(orderSize) || orderSize <= 0)
+      return "Enter a valid order size per grid level.";
+    if (!Number.isFinite(entryBPS) || entryBPS <= 0)
+      return "Enter a valid entry distance.";
+    if (entryBPS * levels >= 10000)
+      return "The outermost grid level must remain above zero price.";
+    if (currentMarkPrice > 0 && orderSize * currentMarkPrice < 10)
+      return `Each grid order must be at least 10 ${quoteAsset} at the current price.`;
+    const requiredInventory = orderSize * (levels + 2);
+    if (!Number.isFinite(inventory) || inventory < requiredInventory)
+      return `Max inventory must be at least ${formatNumber(requiredInventory)} ${baseAsset} for the base position, ${levels} grid levels, and one continuation entry.`;
+    if (
+      currentMarkPrice > 0 &&
+      requiredInventory * currentMarkPrice > Number(maxNotional)
+    )
+      return `Max notional must be at least ${formatNumber(requiredInventory * currentMarkPrice, 2)} ${quoteAsset} for this grid.`;
+    return "";
+  }, [
+    baseAsset,
+    currentMarkPrice,
+    entrySpread,
+    gridLevels,
+    kind,
+    maxInventory,
+    maxNotional,
+    quantity,
+    quoteAsset,
+    spreadUnit,
+  ]);
 
   const storageKey = useMemo(
     () => `rota-copytrade-session:${wallet}`,
@@ -246,6 +319,8 @@ export function BotPanel({ symbol }: { symbol?: string }) {
     try {
       if (!market)
         throw new Error("The current Trade market could not be detected.");
+      if (twapValidationError) throw new Error(twapValidationError);
+      if (makerValidationError) throw new Error(makerValidationError);
       if (
         kind === "MARKET_MAKER" &&
         spreadUnit === "USDC" &&
@@ -254,13 +329,6 @@ export function BotPanel({ symbol }: { symbol?: string }) {
         throw new Error(
           "Current mark price is required for USDC distance mode.",
         );
-      if (
-        kind === "MARKET_MAKER" &&
-        Number(maxInventory) < Number(quantity) * 2
-      )
-        throw new Error(
-          "Max inventory must cover the base position and one additional grid entry (at least 2× order size).",
-        );
       const token = await authorize();
       const base = { version: 1, leverage: Number(leverage) };
       const config =
@@ -268,12 +336,16 @@ export function BotPanel({ symbol }: { symbol?: string }) {
           ? {
               ...base,
               side,
-              total_quantity: Number(quantity),
+              total_quantity: twapEstimatedQuantity,
               duration_seconds: Number(durationMinutes) * 60,
               slice_interval_seconds: Number(intervalSeconds),
               style,
               max_slippage_bps: 30,
-              max_notional: Number(maxNotional),
+              // Keep the requested quote amount as the source of truth while
+              // allowing normal price movement between form submission and
+              // later slices. The execution quantity is still fixed from the
+              // current mark and every slice remains exchange-validated.
+              max_notional: Math.max(twapAmount * 1.05, twapAmount + 10),
               reduce_only: reduceOnly,
             }
           : {
@@ -302,11 +374,12 @@ export function BotPanel({ symbol }: { symbol?: string }) {
               ),
               fee_buffer_bps: Number(feeBuffer),
               order_quantity: Number(quantity),
+              grid_levels: Number(gridLevels),
               max_inventory: Number(maxInventory),
               max_notional: Number(maxNotional),
               max_daily_loss: Number(maxDailyLoss),
               reprice_seconds: 30,
-              max_active_orders: 6,
+              max_active_orders: Math.min(20, Number(gridLevels) * 2 + 2),
             };
       await createBot({ wallet, symbol: market, kind, config }, token);
       await refresh();
@@ -431,13 +504,20 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                     : "Post-only limit slices are cancelled and repriced when unfilled, so completion can extend beyond the selected duration."}
                 </span>
               </div>
-              <Field label={`Total quantity (${baseAsset})`}>
+              <Field
+                label={`Total amount (${quoteAsset})`}
+                note={
+                  currentMarkPrice > 0
+                    ? `≈ ${formatNumber(twapEstimatedQuantity)} ${baseAsset} total · ${twapSliceCount} slices · ≈ ${formatNumber(twapSliceNotional, 2)} ${quoteAsset} each`
+                    : "Waiting for the current mark price."
+                }
+              >
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
+                  value={twapTotalNotional}
+                  onChange={(e) => setTwapTotalNotional(e.target.value)}
                 />
               </Field>
               <Field label="Duration (minutes)">
@@ -463,14 +543,6 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                   max="100"
                   value={leverage}
                   onChange={(e) => setLeverage(e.target.value)}
-                />
-              </Field>
-              <Field label={`Max notional (${quoteAsset})`}>
-                <input
-                  type="number"
-                  min="1"
-                  value={maxNotional}
-                  onChange={(e) => setMaxNotional(e.target.value)}
                 />
               </Field>
               <label
@@ -503,6 +575,19 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                   step="any"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Grid levels"
+                note="Open entry orders at 1×, 2× … the selected distance (maximum 5)."
+              >
+                <input
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={gridLevels}
+                  onChange={(e) => setGridLevels(e.target.value)}
                 />
               </Field>
               <Field label="Distance unit">
@@ -552,7 +637,7 @@ export function BotPanel({ symbol }: { symbol?: string }) {
               </Field>
               <Field
                 label={`Max inventory (${baseAsset})`}
-                note="At least 2× order size: base position + one grid entry."
+                note={`At least ${Number(gridLevels) + 2}× order size: base + ${gridLevels || 0} levels + one continuation entry.`}
               >
                 <input
                   type="number"
@@ -591,12 +676,26 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                 <strong>Always-in-market grid flow</strong>
                 <span>
                   Rota first opens one order-size base position at market, then
-                  keeps a buy grid entry below and a reduce-only profit exit
-                  above. If every bot lot exits, it rebuilds the base position
-                  before placing the next grid. Profit is targeted, not
-                  guaranteed; funding, fees and fast markets still carry risk.
+                  places {gridLevels || 0} entry levels in the{" "}
+                  {direction === "LONG"
+                    ? "buy direction below"
+                    : "sell direction above"}{" "}
+                  the fill and a reduce-only profit exit on the opposite side.
+                  The outer edge extends one level after its fill. If every bot
+                  lot exits, pending entries are cancelled and the cycle
+                  restarts at market.
                 </span>
               </div>
+            </div>
+          )}
+          {kind === "TWAP" && twapValidationError && (
+            <div className="rota-bots__validation">
+              <AlertTriangle size={14} /> {twapValidationError}
+            </div>
+          )}
+          {kind === "MARKET_MAKER" && makerValidationError && (
+            <div className="rota-bots__validation">
+              <AlertTriangle size={14} /> {makerValidationError}
             </div>
           )}
           <div className="rota-bots__warning">
@@ -605,7 +704,12 @@ export function BotPanel({ symbol }: { symbol?: string }) {
           </div>
           <button
             className="rota-bots__submit"
-            disabled={submitting || !wallet || !market}
+            disabled={
+              submitting ||
+              !wallet ||
+              !market ||
+              Boolean(twapValidationError || makerValidationError)
+            }
           >
             {submitting
               ? "Starting…"
@@ -886,6 +990,7 @@ function BotSettingsSummary({
   const buffer = numericValue(bot.config, "fee_buffer_bps");
   const orderSize = numericValue(bot.config, "order_quantity");
   const inventory = numericValue(bot.config, "max_inventory");
+  const levels = numericValue(bot.config, "grid_levels") || 1;
   const entryUSDC = markPrice > 0 ? (markPrice * entry) / 10000 : 0;
   const targetBPS = profit + buffer;
   const targetUSDC = markPrice > 0 ? (markPrice * targetBPS) / 10000 : 0;
@@ -910,6 +1015,9 @@ function BotSettingsSummary({
         <b>
           {formatNumber(orderSize)} {baseAsset}
         </b>
+      </span>
+      <span>
+        Levels <b>{levels}</b>
       </span>
       <span>
         Inventory{" "}

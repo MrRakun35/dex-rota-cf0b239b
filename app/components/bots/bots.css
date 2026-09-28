@@ -176,6 +176,23 @@
   color: rgb(var(--oui-color-warning-light));
   font-size: 11px;
 }
+.rota-bots__validation {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 11px;
+  border: 1px solid rgb(var(--oui-color-warning-light) / 0.25);
+  border-radius: 7px;
+  background: rgb(var(--oui-color-warning) / 0.08);
+  padding: 8px 10px;
+  color: rgb(var(--oui-color-warning-light));
+  font-size: 11px;
+  line-height: 1.4;
+}
+.rota-bots__validation svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
 .rota-bots__submit {
   width: 100%;
   border: 0;
@@ -433,6 +450,7 @@
 
 .rota-bots__dialog {
   width: min(520px, calc(100vw - 28px));
+  padding-bottom: 24px;
   color: rgb(var(--oui-color-base-foreground));
 }
 .rota-bots__dialog-body {
