@@ -1,9 +1,9 @@
 import { ReactNode, useCallback, lazy, Suspense, useMemo } from "react";
-import { registerTwapExec } from "twap-plugin";
 import { OrderlyAppProvider } from "@orderly.network/react-app";
 import type { NetworkId } from "@orderly.network/types";
 import { DemoGraduationChecker } from "@/components/DemoGraduationChecker";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { registerRotaBots } from "@/components/bots/plugin";
 import { useOrderlyConfig } from "@/utils/config";
 import {
   CustomConfigStore,
@@ -70,7 +70,7 @@ const OrderlyProvider = (props: { children: ReactNode }) => {
     [deploymentEnv, networkId],
   );
   const themes = useMemo(() => resolveDexThemeConfig().themes, []);
-  const plugins = useMemo(() => [registerTwapExec()], []);
+  const plugins = useMemo(() => [registerRotaBots()], []);
 
   const privyAppId = getRuntimeConfig("VITE_PRIVY_APP_ID");
   const usePrivy = !!privyAppId;

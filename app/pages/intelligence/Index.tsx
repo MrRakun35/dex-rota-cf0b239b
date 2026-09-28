@@ -27,6 +27,7 @@ import {
   PlatformPosition,
   intelligenceQuery,
 } from "@/services/market-intelligence";
+import { calculatePositionUnrealizedPnL } from "./position-pnl";
 import "./intelligence.css";
 
 type Metric =
@@ -1015,38 +1016,38 @@ export default function IntelligencePage() {
                   {[...positionRows]
                     .sort((a, b) => number(b.notional) - number(a.notional))
                     .slice(0, 20)
-                    .map((row, index) => (
-                      <tr key={`${row.account_id}-${index}`}>
-                        <td>
-                          {row.address
-                            ? `${row.address.slice(0, 6)}…${row.address.slice(-4)}`
-                            : "—"}
-                        </td>
-                        <td>
-                          <span
-                            className={row.side === "LONG" ? "gain" : "loss"}
-                          >
-                            {row.side}
-                          </span>
-                        </td>
-                        <td>{money(row.notional)}</td>
-                        <td>{money(row.average_open_price, false)}</td>
-                        <td>{money(row.mark_price, false)}</td>
-                        <td>
-                          {row.est_liq_price
-                            ? money(row.est_liq_price, false)
-                            : "—"}
-                        </td>
-                        <td>{row.leverage ? `${row.leverage}×` : "—"}</td>
-                        <td
-                          className={
-                            number(row.unrealized_pnl) >= 0 ? "gain" : "loss"
-                          }
-                        >
-                          {money(row.unrealized_pnl)}
-                        </td>
-                      </tr>
-                    ))}
+                    .map((row, index) => {
+                      const unrealizedPnL = calculatePositionUnrealizedPnL(row);
+
+                      return (
+                        <tr key={`${row.account_id}-${index}`}>
+                          <td>
+                            {row.address
+                              ? `${row.address.slice(0, 6)}…${row.address.slice(-4)}`
+                              : "—"}
+                          </td>
+                          <td>
+                            <span
+                              className={row.side === "LONG" ? "gain" : "loss"}
+                            >
+                              {row.side}
+                            </span>
+                          </td>
+                          <td>{money(row.notional)}</td>
+                          <td>{money(row.average_open_price, false)}</td>
+                          <td>{money(row.mark_price, false)}</td>
+                          <td>
+                            {row.est_liq_price
+                              ? money(row.est_liq_price, false)
+                              : "—"}
+                          </td>
+                          <td>{row.leverage ? `${row.leverage}×` : "—"}</td>
+                          <td className={unrealizedPnL >= 0 ? "gain" : "loss"}>
+                            {money(unrealizedPnL)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
