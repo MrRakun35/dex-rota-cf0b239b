@@ -123,7 +123,6 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   const [maxInventory, setMaxInventory] = useState("0.1");
   const [maxNotional, setMaxNotional] = useState("5000");
   const [maxDailyLoss, setMaxDailyLoss] = useState("250");
-  const [leverage, setLeverage] = useState("3");
 
   const [, baseAsset = "Base asset", quoteAsset = "USDC"] = market.split("_");
   const runningCount = bots.filter(isRunningBot).length;
@@ -330,7 +329,7 @@ export function BotPanel({ symbol }: { symbol?: string }) {
           "Current mark price is required for USDC distance mode.",
         );
       const token = await authorize();
-      const base = { version: 1, leverage: Number(leverage) };
+      const base = { version: 1 };
       const config =
         kind === "TWAP"
           ? {
@@ -536,15 +535,6 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                   onChange={(e) => setIntervalSeconds(e.target.value)}
                 />
               </Field>
-              <Field label="Leverage" note="Locked while the bot is running.">
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={leverage}
-                  onChange={(e) => setLeverage(e.target.value)}
-                />
-              </Field>
               <label
                 className="rota-bots__check"
                 title="Only reduces an existing position; it cannot increase or reverse your exposure."
@@ -661,15 +651,6 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                   min="1"
                   value={maxDailyLoss}
                   onChange={(e) => setMaxDailyLoss(e.target.value)}
-                />
-              </Field>
-              <Field label="Leverage" note="Locked while the bot is running.">
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={leverage}
-                  onChange={(e) => setLeverage(e.target.value)}
                 />
               </Field>
               <div className="rota-bots__flow-note rota-bots__flow-note--wide">
@@ -952,7 +933,6 @@ function BotSettingsSummary({
   markPrice: number;
 }) {
   const baseAsset = bot.symbol.split("_")[1] || "base";
-  const leverage = numericValue(bot.config, "leverage");
   if (bot.kind === "TWAP") {
     const total = numericValue(bot.config, "total_quantity");
     const executed = Math.min(
@@ -980,7 +960,7 @@ function BotSettingsSummary({
         </span>
         <span>
           {textValue(bot.config, "style") || "TAKER"} ·{" "}
-          {Math.ceil(duration / 60)}m · {leverage}x
+          {Math.ceil(duration / 60)}m
         </span>
       </div>
     );
@@ -1024,8 +1004,7 @@ function BotSettingsSummary({
         Inventory{" "}
         <b>
           {formatNumber(inventory)} {baseAsset}
-        </b>{" "}
-        · {leverage}x
+        </b>
       </span>
     </div>
   );
