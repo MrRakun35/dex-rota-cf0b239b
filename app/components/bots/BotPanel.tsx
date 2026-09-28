@@ -120,7 +120,7 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   const [profitSpread, setProfitSpread] = useState("50");
   const [feeBuffer, setFeeBuffer] = useState("6");
   const [spreadUnit, setSpreadUnit] = useState<SpreadUnit>("BPS");
-  const [maxInventory, setMaxInventory] = useState("0.05");
+  const [maxInventory, setMaxInventory] = useState("0.1");
   const [maxNotional, setMaxNotional] = useState("5000");
   const [maxDailyLoss, setMaxDailyLoss] = useState("250");
   const [leverage, setLeverage] = useState("3");
@@ -181,9 +181,9 @@ export function BotPanel({ symbol }: { symbol?: string }) {
       return "The outermost grid level must remain above zero price.";
     if (currentMarkPrice > 0 && orderSize * currentMarkPrice < 10)
       return `Each grid order must be at least 10 ${quoteAsset} at the current price.`;
-    const requiredInventory = orderSize * (levels + 2);
+    const requiredInventory = orderSize * (levels * 2 + 1);
     if (!Number.isFinite(inventory) || inventory < requiredInventory)
-      return `Max inventory must be at least ${formatNumber(requiredInventory)} ${baseAsset} for the base position, ${levels} grid levels, and one continuation entry.`;
+      return `Max inventory must be at least ${formatNumber(requiredInventory)} ${baseAsset} to manage filled lots while keeping ${levels} floating entry orders open.`;
     if (
       currentMarkPrice > 0 &&
       requiredInventory * currentMarkPrice > Number(maxNotional)
@@ -637,7 +637,7 @@ export function BotPanel({ symbol }: { symbol?: string }) {
               </Field>
               <Field
                 label={`Max inventory (${baseAsset})`}
-                note={`At least ${Number(gridLevels) + 2}× order size: base + ${gridLevels || 0} levels + one continuation entry.`}
+                note={`At least ${Number(gridLevels) * 2 + 1}× order size: filled lots plus ${gridLevels || 0} continuously maintained entry levels.`}
               >
                 <input
                   type="number"
@@ -681,9 +681,10 @@ export function BotPanel({ symbol }: { symbol?: string }) {
                     ? "buy direction below"
                     : "sell direction above"}{" "}
                   the fill and a reduce-only profit exit on the opposite side.
-                  The outer edge extends one level after its fill. If every bot
-                  lot exits, pending entries are cancelled and the cycle
-                  restarts at market.
+                  Every entry fill gets its own reduce-only exit and the bot
+                  adds a new outer entry so {gridLevels || 0} pending entry
+                  levels remain. If every bot lot exits, all pending entries are
+                  cancelled before the cycle restarts at market.
                 </span>
               </div>
             </div>
