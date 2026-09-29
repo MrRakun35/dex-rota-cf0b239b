@@ -2,7 +2,7 @@ import { getRuntimeConfig } from "@/utils/runtime-config";
 
 const apiURL = () =>
   (
-    getRuntimeConfig("VITE_COPYTRADE_API_URL") || "https://copy.algobotapp.com"
+    getRuntimeConfig("VITE_COPYTRADE_API_URL") || "https://rota.algobotapp.com"
   ).replace(/\/$/, "");
 
 export type BotKind = "TWAP" | "MARKET_MAKER";

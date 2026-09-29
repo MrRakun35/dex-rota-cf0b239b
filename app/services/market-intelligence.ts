@@ -6,7 +6,7 @@ const apiURL = () => {
   // not hide otherwise healthy market data.
   if (import.meta.env.DEV) return "/copy-api";
   return (
-    getRuntimeConfig("VITE_COPYTRADE_API_URL") || "https://copy.algobotapp.com"
+    getRuntimeConfig("VITE_COPYTRADE_API_URL") || "https://rota.algobotapp.com"
   ).replace(/\/$/, "");
 };
 
@@ -32,6 +32,7 @@ export interface MarketSnapshot {
 export interface PlatformPosition {
   address: string;
   account_id: string;
+  broker_id?: string;
   symbol: string;
   side: "LONG" | "SHORT" | string;
   position_qty: string;

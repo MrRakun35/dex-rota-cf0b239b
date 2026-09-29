@@ -23,7 +23,7 @@ window.__RUNTIME_CONFIG__ = {
   VITE_HAS_SECONDARY_LOGO: "true",
   VITE_ENABLED_MENUS:
     "Trading,CopyTrade,Portfolio,Markets,Intelligence,Swap,Rewards",
-  VITE_COPYTRADE_API_URL: "https://copy.algobotapp.com",
+  VITE_COPYTRADE_API_URL: "https://rota.algobotapp.com",
   VITE_CUSTOM_MENUS: "AlgoBotApp,https://algobotapp.com/",
   VITE_ENABLE_SERVICE_DISCLAIMER_DIALOG: "false",
   VITE_ENABLE_CAMPAIGNS: "false",

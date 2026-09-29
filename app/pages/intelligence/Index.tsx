@@ -27,6 +27,7 @@ import {
   PlatformPosition,
   intelligenceQuery,
 } from "@/services/market-intelligence";
+import { summarizePositionExposure } from "./position-exposure";
 import { calculatePositionUnrealizedPnL } from "./position-pnl";
 import "./intelligence.css";
 
@@ -670,7 +671,7 @@ export default function IntelligencePage() {
     const candleLimit = liquidationRange === "30d" ? 180 : 168;
     Promise.allSettled([
       intelligenceQuery<PositionsData>(
-        { type: "platformPositions", symbol, min_notional: "100", limit: 500 },
+        { type: "platformPositions", symbol, min_notional: "0", limit: 1000 },
         controller.signal,
       ),
       intelligenceQuery<{ rows: FundingComparisonRow[] }>(
@@ -755,16 +756,16 @@ export default function IntelligencePage() {
         Math.max(number(current.mark_price), 1)) *
       10000
     : 0;
-  const positionRows = useMemo(
-    () => positions?.data.rows || [],
+  const positionExposure = useMemo(
+    () => summarizePositionExposure(positions?.data.rows || []),
     [positions?.data.rows],
   );
-  const longNotional = number(positions?.data.total_long_notional);
-  const shortNotional = number(positions?.data.total_short_notional);
-  const longShare =
-    longNotional + shortNotional
-      ? (longNotional / (longNotional + shortNotional)) * 100
-      : 50;
+  const {
+    rows: positionRows,
+    longNotional,
+    shortNotional,
+    longShare,
+  } = positionExposure;
   const fundingRows = funding?.data.rows || [];
   const selectedFunding =
     fundingRows.find((row) => row.symbol === symbol) || fundingRows[0];
