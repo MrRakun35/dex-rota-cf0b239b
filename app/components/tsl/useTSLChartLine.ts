@@ -6,6 +6,7 @@ import {
   useSymbolsInfo,
 } from "@orderly.network/hooks";
 import { toast } from "@orderly.network/ui";
+import { stylePositionLabels } from "@/utils/position-label-contrast";
 
 function getThemeColor(cssVarName: string, fallback: string): string {
   if (typeof window === "undefined") return fallback;
@@ -102,6 +103,9 @@ export function useTSLChartLine(symbol: string) {
       wrappedWidget = function (...args: any[]) {
         const widget = new originalWidget(...args);
         (window as any).__rotaOrderlyTvWidget = widget;
+        widget.onChartReady(() => {
+          stylePositionLabels(widget.activeChart());
+        });
         return widget;
       };
       library.widget = wrappedWidget;
