@@ -25,6 +25,8 @@ import {
 } from "@orderly.network/ui";
 import {
   BotKind,
+  BotAPIError,
+  withBotAuthorization,
   createBot,
   deleteBot,
   listBots,
@@ -137,6 +139,8 @@ export function BotPanel({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [needsAuthorization, setNeedsAuthorization] = useState(false);
+  const [authorizing, setAuthorizing] = useState(false);
   const [listView, setListView] = useState<BotListView>("running");
   const [expandedBotId, setExpandedBotId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingBotAction>(null);
@@ -298,54 +302,71 @@ export function BotPanel({
     setError("");
   };
 
-  const authorize = useCallback(async () => {
-    if (
-      !account.address ||
-      !account.accountId ||
-      !account.chainId ||
-      !account.walletAdapter
-    ) {
-      throw new Error("Connect your ROTA trading wallet first.");
-    }
-    const existing = localStorage.getItem(storageKey);
-    if (existing) return existing;
-    const intent = await createCredentialIntent({
-      wallet: account.address,
-      account_id: account.accountId,
-      chain_id: Number(account.chainId),
-    });
-    const signed = (await account.walletAdapter.generateAddOrderlyKeyMessage({
-      publicKey: intent.public_key,
-      brokerId: intent.broker_id,
-      expiration: 365,
-      timestamp: intent.timestamp,
-      scope: intent.scope,
-    })) as unknown as { signatured: string };
-    const confirmation = await confirmCredentialIntent(
-      intent.id,
-      signed.signatured,
-    );
-    localStorage.setItem(storageKey, confirmation.authorization_token);
-    return confirmation.authorization_token;
-  }, [account, storageKey]);
+  const authorize = useCallback(
+    async (force = false) => {
+      if (
+        !account.address ||
+        !account.accountId ||
+        !account.chainId ||
+        !account.walletAdapter
+      ) {
+        throw new Error("Connect your ROTA trading wallet first.");
+      }
+      const existing = localStorage.getItem(storageKey);
+      if (existing && !force) return existing;
+      if (force) localStorage.removeItem(storageKey);
+      const intent = await createCredentialIntent({
+        wallet: account.address,
+        account_id: account.accountId,
+        chain_id: Number(account.chainId),
+      });
+      const signed = (await account.walletAdapter.generateAddOrderlyKeyMessage({
+        publicKey: intent.public_key,
+        brokerId: intent.broker_id,
+        expiration: 365,
+        timestamp: intent.timestamp,
+        scope: intent.scope,
+      })) as unknown as { signatured: string };
+      const confirmation = await confirmCredentialIntent(
+        intent.id,
+        signed.signatured,
+      );
+      localStorage.setItem(storageKey, confirmation.authorization_token);
+      setNeedsAuthorization(false);
+      window.dispatchEvent(new Event("rota-bots-updated"));
+      return confirmation.authorization_token;
+    },
+    [account, storageKey],
+  );
 
   const refresh = useCallback(
     async (silent = false) => {
       if (!wallet) {
         setBots([]);
+        setNeedsAuthorization(false);
         return;
       }
       const token = localStorage.getItem(storageKey);
       if (!token) {
         setBots([]);
+        setNeedsAuthorization(true);
         return;
       }
       if (!silent) setLoading(true);
       try {
         const response = await listBots(wallet, token);
         setBots(response.data);
+        setNeedsAuthorization(false);
         setError("");
       } catch (cause) {
+        if (cause instanceof BotAPIError && cause.status === 401) {
+          if (localStorage.getItem(storageKey) !== token) return;
+          localStorage.removeItem(storageKey);
+          setNeedsAuthorization(true);
+          setBots([]);
+          setError("");
+          return;
+        }
         setError(
           cause instanceof Error ? cause.message : "Bots could not be loaded.",
         );
@@ -369,6 +390,21 @@ export function BotPanel({
     };
   }, [refresh, view]);
 
+  async function reconnectBots() {
+    setAuthorizing(true);
+    setError("");
+    try {
+      await authorize(true);
+      await refresh();
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Bot authorization failed.",
+      );
+    } finally {
+      setAuthorizing(false);
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
@@ -387,7 +423,6 @@ export function BotPanel({
         throw new Error(
           "Current mark price is required for USDC distance mode.",
         );
-      const token = await authorize();
       const base = {
         version: 1,
         leverage: trading.leverage,
@@ -445,7 +480,9 @@ export function BotPanel({
                 reprice_seconds: 30,
                 max_active_orders: Math.min(20, Number(gridLevels) * 2 + 2),
               };
-      await createBot({ wallet, symbol: market, kind, config }, token);
+      await withBotAuthorization(authorize, (token) =>
+        createBot({ wallet, symbol: market, kind, config }, token),
+      );
       window.dispatchEvent(new Event("rota-bots-updated"));
       await refresh();
     } catch (cause) {
@@ -462,19 +499,18 @@ export function BotPanel({
     action: "pause" | "resume" | "stop" | "delete",
     closePosition = false,
   ) {
-    const token = localStorage.getItem(storageKey);
-    if (!token) {
-      setError("Your trading session expired. Start a bot to reconnect.");
-      return false;
-    }
     try {
       if (action === "delete") {
-        await deleteBot(item.id, token);
+        await withBotAuthorization(authorize, (token) =>
+          deleteBot(item.id, token),
+        );
         setBots((current) => current.filter((bot) => bot.id !== item.id));
       } else {
-        const updated = await setBotStatus(item.id, action, token, {
-          closePosition,
-        });
+        const updated = await withBotAuthorization(authorize, (token) =>
+          setBotStatus(item.id, action, token, {
+            closePosition,
+          }),
+        );
         setBots((current) =>
           current.map((bot) =>
             bot.id === item.id ? { ...bot, ...updated } : bot,
@@ -826,18 +862,33 @@ export function BotPanel({
                 className={listView === "running" ? "active" : ""}
                 onClick={() => setListView("running")}
               >
-                Running <span>{runningCount}</span>
+                Running <span>{needsAuthorization ? "—" : runningCount}</span>
               </button>
               <button
                 type="button"
                 className={listView === "history" ? "active" : ""}
                 onClick={() => setListView("history")}
               >
-                History <span>{historyCount}</span>
+                History <span>{needsAuthorization ? "—" : historyCount}</span>
               </button>
             </div>
             {error && <div className="rota-bots__error">{error}</div>}
-            {loading ? (
+            {needsAuthorization ? (
+              <div className="rota-bots__empty">
+                Authorize your wallet to view running bots and bot history.
+                <button
+                  type="button"
+                  disabled={authorizing}
+                  onClick={() => void reconnectBots()}
+                >
+                  {authorizing ? "Authorizing…" : "Authorize bots"}
+                </button>
+              </div>
+            ) : !wallet ? (
+              <div className="rota-bots__empty">
+                Connect your trading wallet to view your bots.
+              </div>
+            ) : loading ? (
               <div className="rota-bots__empty">Loading bots…</div>
             ) : visibleBots.length === 0 ? (
               <div className="rota-bots__empty">

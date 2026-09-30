@@ -1,4 +1,4 @@
-import { getRuntimeConfig } from "@/utils/runtime-config";
+import { getRuntimeConfig } from "../utils/runtime-config";
 
 const apiURL = () =>
   (
@@ -43,6 +43,31 @@ export interface TradingBot {
   }>;
 }
 
+export class BotAPIError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+    this.name = "BotAPIError";
+  }
+}
+
+export async function withBotAuthorization<T>(
+  authorize: (force?: boolean) => Promise<string>,
+  operation: (token: string) => Promise<T>,
+) {
+  const token = await authorize();
+  try {
+    return await operation(token);
+  } catch (error) {
+    // A 401 is rejected before the bot operation runs. Never retry ambiguous
+    // network errors or server failures that may have already created an order.
+    if (!(error instanceof BotAPIError) || error.status !== 401) throw error;
+    return operation(await authorize(true));
+  }
+}
+
 async function request<T>(path: string, token: string, init?: RequestInit) {
   const response = await fetch(`${apiURL()}${path}`, {
     ...init,
@@ -56,7 +81,10 @@ async function request<T>(path: string, token: string, init?: RequestInit) {
   if (response.status === 204) return undefined as T;
   const body = await response.json().catch(() => ({}));
   if (!response.ok)
-    throw new Error(body.error || `Request failed (${response.status})`);
+    throw new BotAPIError(
+      body.error || `Request failed (${response.status})`,
+      response.status,
+    );
   return body as T;
 }
 

@@ -416,6 +416,18 @@
   padding: 8px;
   margin-bottom: 8px;
 }
+.rota-bots__empty button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: rgb(var(--oui-color-primary, 85 124 255) / 0.16);
+  color: inherit;
+  border: 1px solid currentColor;
+  cursor: pointer;
+}
+.rota-bots__empty button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
 .rota-bots__empty {
   min-height: 100px;
   display: flex;
