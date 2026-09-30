@@ -132,7 +132,7 @@ describe("DCA configuration", () => {
     act(() => start.click());
     expect(settings.start_enabled).toBe(true);
     expect(container.textContent).toContain(
-      "Each round starts when price is at or above",
+      "Each round places a sell limit order",
     );
     const reset = [...container.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("Reset settings"),

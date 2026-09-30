@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TradingPage } from "@orderly.network/trading";
 import { API } from "@orderly.network/types";
+import { DCALiveLevels } from "@/components/bots/DCALiveLevels";
 import { OrderEntryModeProvider } from "@/components/bots/OrderEntryMode";
 import { OrderEntryTSLEnhancer } from "@/components/tsl/OrderEntryTSLEnhancer";
 import { TSLTableEnhancer } from "@/components/tsl/TSLTableEnhancer";
@@ -87,6 +88,7 @@ export default function PerpSymbol() {
         />
       </OrderEntryModeProvider>
       <TSLTableEnhancer />
+      <DCALiveLevels symbol={symbol} />
       <OrderEntryTSLEnhancer symbol={symbol} />
       <div className="md:hidden pb-2 pt-8 text-center">
         <span className="oui-text-2xs oui-text-base-contrast-54">

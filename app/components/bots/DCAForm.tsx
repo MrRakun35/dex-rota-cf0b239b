@@ -325,8 +325,8 @@ export function DCAForm({
           "Start Condition",
           `Trigger Price (${quoteAsset})`,
           settings.direction === "LONG"
-            ? "Each round starts when price is at or below this trigger."
-            : "Each round starts when price is at or above this trigger.",
+            ? "Each round places a buy limit order at this price."
+            : "Each round places a sell limit order at this price.",
         )}
         {condition(
           "stop_enabled",
@@ -376,12 +376,14 @@ export function DCAForm({
           {quoteAsset}
         </strong>
         <span>
-          One base market order, then up to {settings.max_dca_orders || 0} DCA
-          market orders at cumulative steps from the base fill. Order margins
-          grow by the size multiplier. Take profit closes the whole position at{" "}
-          {settings.take_profit_percent || 0}% from average entry and starts a
-          new round. Targets use price change before fees; triggers are checked
-          every second.
+          A base market order, or a start-price limit order, then up to{" "}
+          {settings.max_dca_orders || 0} DCA limit orders at cumulative steps
+          from the base fill. Only the next entry stays on the exchange. Order
+          margins grow by the size multiplier. A reduce-only limit take profit
+          covers the whole position at {settings.take_profit_percent || 0}% from
+          average entry and starts a new round. The TP price and quantity update
+          after fills. Targets use price change before fees; stop conditions are
+          checked every second.
         </span>
       </div>
     </div>
