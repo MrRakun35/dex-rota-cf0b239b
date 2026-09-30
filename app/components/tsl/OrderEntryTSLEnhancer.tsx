@@ -307,7 +307,9 @@ export const OrderEntryTSLEnhancer: React.FC<OrderEntryTSLEnhancerProps> = ({
 
     const attachPortal = () => {
       const allowed = isLimitOrMarket();
-      const tpslContainer = document.querySelector(".oui-orderEntry-tpsl");
+      const tpslContainer = Array.from(
+        document.querySelectorAll(".oui-orderEntry-tpsl"),
+      ).find((element) => !element.closest("#order-entry-tsl-host"));
 
       // If not Limit or Market, or if native TP/SL container is not present, clean up host and hide
       if (!allowed || !tpslContainer || !tpslContainer.parentElement) {

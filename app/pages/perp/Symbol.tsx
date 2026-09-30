@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TradingPage } from "@orderly.network/trading";
 import { API } from "@orderly.network/types";
+import { OrderEntryModeProvider } from "@/components/bots/OrderEntryMode";
 import { OrderEntryTSLEnhancer } from "@/components/tsl/OrderEntryTSLEnhancer";
 import { TSLTableEnhancer } from "@/components/tsl/TSLTableEnhancer";
 import { useTSLChartLine } from "@/components/tsl/useTSLChartLine";
@@ -77,12 +78,14 @@ export default function PerpSymbol() {
   return (
     <div className="h-full">
       {renderSEOTags(pageMeta, pageTitle)}
-      <TradingPage
-        symbol={symbol}
-        onSymbolChange={onSymbolChange}
-        tradingViewConfig={config.tradingPage.tradingViewConfig}
-        sharePnLConfig={config.tradingPage.sharePnLConfig}
-      />
+      <OrderEntryModeProvider symbol={symbol}>
+        <TradingPage
+          symbol={symbol}
+          onSymbolChange={onSymbolChange}
+          tradingViewConfig={config.tradingPage.tradingViewConfig}
+          sharePnLConfig={config.tradingPage.sharePnLConfig}
+        />
+      </OrderEntryModeProvider>
       <TSLTableEnhancer />
       <OrderEntryTSLEnhancer symbol={symbol} />
       <div className="md:hidden pb-2 pt-8 text-center">

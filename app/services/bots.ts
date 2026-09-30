@@ -5,7 +5,7 @@ const apiURL = () =>
     getRuntimeConfig("VITE_COPYTRADE_API_URL") || "https://rota.algobotapp.com"
   ).replace(/\/$/, "");
 
-export type BotKind = "TWAP" | "MARKET_MAKER";
+export type BotKind = "TWAP" | "MARKET_MAKER" | "DCA";
 export type BotStatus =
   | "active"
   | "paused"

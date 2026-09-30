@@ -88,7 +88,7 @@
 }
 .rota-bots__switch {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.45fr 1fr 0.75fr;
   background: rgb(var(--oui-color-base-8));
   border-radius: var(--oui-rounded-md, 6px);
   padding: 3px;
@@ -510,4 +510,158 @@
 .rota-bots__dialog-actions button:disabled {
   cursor: wait;
   opacity: 0.5;
+}
+
+.rota-bots__dca {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rota-bots__direction {
+  grid-template-columns: 1fr 1fr;
+}
+.rota-bots__direction button.active.is-long {
+  background: rgb(var(--oui-color-success) / 0.22);
+  color: rgb(var(--oui-color-success-light));
+}
+.rota-bots__direction button.active.is-short {
+  background: rgb(var(--oui-color-danger) / 0.22);
+  color: rgb(var(--oui-color-danger-light));
+}
+.rota-bots__dca-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rota-bots__dca-heading button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: rgb(var(--oui-color-base-foreground) / 0.55);
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+}
+.rota-bots__dca-section > strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.rota-bots__dca-advanced {
+  border-top: 1px solid rgb(var(--oui-color-line) / 0.12);
+  padding-top: 12px;
+}
+.rota-bots__dca-advanced summary {
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+.rota-bots__dca-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.rota-bots__dca-condition > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.rota-bots__dca-condition input[type="checkbox"] {
+  accent-color: rgb(var(--oui-color-primary-light));
+}
+
+.rota-bots__dca .rota-bots__field,
+.rota-bots__dca .rota-bots__field > small,
+.rota-bots__dca .rota-bots__flow-note,
+.rota-bots__dca-condition,
+.rota-bots__preview {
+  text-align: left;
+}
+.rota-bots__dca-condition > .rota-bots__field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.rota-bots__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rota-bots__preview-actions {
+  display: flex;
+  gap: 8px;
+}
+.rota-bots__preview-actions button {
+  border: 1px solid rgb(var(--oui-color-primary-light) / 0.3);
+  border-radius: 7px;
+  padding: 8px 14px;
+  background: rgb(var(--oui-color-primary) / 0.15);
+  color: rgb(var(--oui-color-primary-light));
+}
+.rota-bots__preview small {
+  color: rgb(var(--oui-color-base-foreground) / 0.5);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.rota-bots__preview [role="alert"] {
+  color: rgb(var(--oui-color-warning-light));
+  font-size: 11px;
+}
+
+.rota-bots--setup {
+  padding: 0;
+  height: auto;
+  overflow: visible;
+}
+.rota-bots--setup .rota-bots__layout,
+.rota-bots--list .rota-bots__layout {
+  display: block;
+}
+.rota-bots--setup .rota-bots__form {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  max-height: none;
+  overflow: visible;
+}
+.rota-bots--setup .rota-bots__grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.rota-bots--setup .rota-bots__switch button {
+  font-size: 11px;
+  padding: 8px 4px;
+}
+.rota-bots--list .rota-bots__list {
+  max-height: none;
+}
+.rota-bots__grid-direction {
+  grid-column: 1 / -1;
+}
+.rota-entry-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgb(var(--oui-color-base-8));
+  border-radius: 7px;
+  padding: 3px;
+}
+.rota-entry-tabs button {
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 8px;
+  font-size: 12px;
+  color: rgb(var(--oui-color-base-foreground) / 0.6);
+}
+.rota-entry-tabs button.active {
+  color: rgb(var(--oui-color-primary-light));
+  background: rgb(var(--oui-color-primary) / 0.15);
+  border-color: rgb(var(--oui-color-primary-light) / 0.2);
+}
+
+.rota-bots--setup .rota-bots__form {
+  max-height: min(680px, calc(100vh - 220px));
+  overflow-y: auto;
+  padding-right: 5px;
 }

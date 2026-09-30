@@ -12,7 +12,11 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { useAccount, useMarkPrice } from "@orderly.network/hooks";
+import {
+  useAccount,
+  useMarkPrice,
+  useSymbolInfo,
+} from "@orderly.network/hooks";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +35,15 @@ import {
   confirmCredentialIntent,
   createCredentialIntent,
 } from "@/services/copy-trade";
+import {
+  DCAForm,
+  defaultDCASettings,
+  dcaConfig,
+  dcaValidation,
+  dcaMinimumMargins,
+} from "./DCAForm";
+import { useBotTradingSettings } from "./OrderEntryMode";
+import { useDCAPreview } from "./useDCAPreview";
 import "./bots.css";
 
 const cleanSymbol = (value?: string) =>
@@ -87,7 +100,15 @@ const distanceFromBPS = (bps: number, unit: SpreadUnit, markPrice: number) => {
 
 const inputNumber = (value: number) => Number(value.toFixed(6)).toString();
 
-export function BotPanel({ symbol }: { symbol?: string }) {
+export function BotPanel({
+  symbol,
+  view = "list",
+  previewEnabled = true,
+}: {
+  symbol?: string;
+  view?: "setup" | "list";
+  previewEnabled?: boolean;
+}) {
   const { account } = useAccount();
   const location = useLocation();
   const wallet = account.address?.toLowerCase() ?? "";
@@ -97,7 +118,21 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   const market = cleanSymbol(routeSymbol || symbol);
   const { data: rawMarkPrice } = useMarkPrice(market);
   const currentMarkPrice = Number(rawMarkPrice) || 0;
-  const [kind, setKind] = useState<BotKind>("TWAP");
+  const symbolInfo = useSymbolInfo(market);
+  const marketRules = symbolInfo
+    ? {
+        min_notional: Number(symbolInfo("min_notional")),
+        base_tick: Number(symbolInfo("base_tick")),
+        base_min: Number(symbolInfo("base_min")),
+      }
+    : undefined;
+  const trading = useBotTradingSettings(market);
+  const [dcaInputs, setDcaSettings] = useState({ ...defaultDCASettings });
+  const dcaSettings = useMemo(
+    () => ({ ...dcaInputs, leverage: String(trading.leverage) }),
+    [dcaInputs, trading.leverage],
+  );
+  const [kind, setKind] = useState<BotKind>("MARKET_MAKER");
   const [bots, setBots] = useState<TradingBot[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -125,6 +160,22 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   const [maxDailyLoss, setMaxDailyLoss] = useState("250");
 
   const [, baseAsset = "Base asset", quoteAsset = "USDC"] = market.split("_");
+  const dcaValidationError =
+    kind === "DCA"
+      ? dcaValidation(dcaSettings, currentMarkPrice, marketRules)
+      : "";
+  const minimumMargins = dcaMinimumMargins(
+    dcaSettings,
+    currentMarkPrice,
+    marketRules,
+  );
+  const dcaPreview = useDCAPreview(
+    market,
+    dcaSettings,
+    currentMarkPrice,
+    kind === "DCA" && view === "setup" && previewEnabled,
+    dcaValidationError,
+  );
   const runningCount = bots.filter(isRunningBot).length;
   const historyCount = bots.length - runningCount;
   const visibleBots = bots.filter((bot) =>
@@ -306,10 +357,17 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   );
 
   useEffect(() => {
+    const update = () => void refresh(true);
+    window.addEventListener("rota-bots-updated", update);
+    if (view !== "list")
+      return () => window.removeEventListener("rota-bots-updated", update);
     void refresh();
     const timer = window.setInterval(() => void refresh(true), 10_000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("rota-bots-updated", update);
+    };
+  }, [refresh, view]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -320,6 +378,7 @@ export function BotPanel({ symbol }: { symbol?: string }) {
         throw new Error("The current Trade market could not be detected.");
       if (twapValidationError) throw new Error(twapValidationError);
       if (makerValidationError) throw new Error(makerValidationError);
+      if (dcaValidationError) throw new Error(dcaValidationError);
       if (
         kind === "MARKET_MAKER" &&
         spreadUnit === "USDC" &&
@@ -329,58 +388,65 @@ export function BotPanel({ symbol }: { symbol?: string }) {
           "Current mark price is required for USDC distance mode.",
         );
       const token = await authorize();
-      const base = { version: 1 };
+      const base = {
+        version: 1,
+        leverage: trading.leverage,
+        margin_mode: trading.marginMode,
+      };
       const config =
-        kind === "TWAP"
-          ? {
-              ...base,
-              side,
-              total_quantity: twapEstimatedQuantity,
-              duration_seconds: Number(durationMinutes) * 60,
-              slice_interval_seconds: Number(intervalSeconds),
-              style,
-              max_slippage_bps: 30,
-              // Keep the requested quote amount as the source of truth while
-              // allowing normal price movement between form submission and
-              // later slices. The execution quantity is still fixed from the
-              // current mark and every slice remains exchange-validated.
-              max_notional: Math.max(twapAmount * 1.05, twapAmount + 10),
-              reduce_only: reduceOnly,
-            }
-          : {
-              ...base,
-              direction,
-              calculation_mode: "PERCENT",
-              entry_spread_bps: Math.max(
-                1,
-                Math.round(
-                  distanceToBPS(
-                    Number(entrySpread),
-                    spreadUnit,
-                    currentMarkPrice,
+        kind === "DCA"
+          ? { ...dcaConfig(dcaSettings), margin_mode: trading.marginMode }
+          : kind === "TWAP"
+            ? {
+                ...base,
+                side,
+                total_quantity: twapEstimatedQuantity,
+                duration_seconds: Number(durationMinutes) * 60,
+                slice_interval_seconds: Number(intervalSeconds),
+                style,
+                max_slippage_bps: 30,
+                // Keep the requested quote amount as the source of truth while
+                // allowing normal price movement between form submission and
+                // later slices. The execution quantity is still fixed from the
+                // current mark and every slice remains exchange-validated.
+                max_notional: Math.max(twapAmount * 1.05, twapAmount + 10),
+                reduce_only: reduceOnly,
+              }
+            : {
+                ...base,
+                direction,
+                calculation_mode: "PERCENT",
+                entry_spread_bps: Math.max(
+                  1,
+                  Math.round(
+                    distanceToBPS(
+                      Number(entrySpread),
+                      spreadUnit,
+                      currentMarkPrice,
+                    ),
                   ),
                 ),
-              ),
-              profit_spread_bps: Math.max(
-                1,
-                Math.round(
-                  distanceToBPS(
-                    Number(profitSpread),
-                    spreadUnit,
-                    currentMarkPrice,
+                profit_spread_bps: Math.max(
+                  1,
+                  Math.round(
+                    distanceToBPS(
+                      Number(profitSpread),
+                      spreadUnit,
+                      currentMarkPrice,
+                    ),
                   ),
                 ),
-              ),
-              fee_buffer_bps: Number(feeBuffer),
-              order_quantity: Number(quantity),
-              grid_levels: Number(gridLevels),
-              max_inventory: Number(maxInventory),
-              max_notional: Number(maxNotional),
-              max_daily_loss: Number(maxDailyLoss),
-              reprice_seconds: 30,
-              max_active_orders: Math.min(20, Number(gridLevels) * 2 + 2),
-            };
+                fee_buffer_bps: Number(feeBuffer),
+                order_quantity: Number(quantity),
+                grid_levels: Number(gridLevels),
+                max_inventory: Number(maxInventory),
+                max_notional: Number(maxNotional),
+                max_daily_loss: Number(maxDailyLoss),
+                reprice_seconds: 30,
+                max_active_orders: Math.min(20, Number(gridLevels) * 2 + 2),
+              };
       await createBot({ wallet, symbol: market, kind, config }, token);
+      window.dispatchEvent(new Event("rota-bots-updated"));
       await refresh();
     } catch (cause) {
       setError(
@@ -443,400 +509,446 @@ export function BotPanel({ symbol }: { symbol?: string }) {
   }
 
   return (
-    <section className="rota-bots">
-      <header className="rota-bots__header">
-        <div>
-          <strong>Rota Bots</strong>
-          <span>Execution runs on Rota infrastructure.</span>
-        </div>
-      </header>
+    <section className={`rota-bots rota-bots--${view}`}>
       <div className="rota-bots__layout">
-        <form className="rota-bots__form" onSubmit={submit}>
-          <div className="rota-bots__switch">
-            <button
-              type="button"
-              className={kind === "TWAP" ? "active" : ""}
-              onClick={() => setKind("TWAP")}
-            >
-              TWAP
-            </button>
-            <button
-              type="button"
-              className={kind === "MARKET_MAKER" ? "active" : ""}
-              onClick={() => setKind("MARKET_MAKER")}
-            >
-              Grid Market Maker
-            </button>
-          </div>
-          <p className="rota-bots__hint">
-            {kind === "TWAP"
-              ? "Split one order into smaller time-based slices."
-              : "Build independent maker grid lots with cost-adjusted reduce-only exits."}
-          </p>
-          <p className="rota-bots__current-market">
-            This strategy will use the market currently open in Trade.
-          </p>
-          {kind === "TWAP" ? (
-            <div className="rota-bots__grid">
-              <Field label="Side">
-                <select value={side} onChange={(e) => setSide(e.target.value)}>
-                  <option>BUY</option>
-                  <option>SELL</option>
-                </select>
-              </Field>
-              <Field label="Execution">
-                <select
-                  value={style}
-                  onChange={(e) => setStyle(e.target.value)}
+        {view === "setup" && (
+          <form className="rota-bots__form" onSubmit={submit}>
+            <div className="rota-bots__switch">
+              {(
+                [
+                  { kind: "MARKET_MAKER", label: "Grid & Market Maker" },
+                  { kind: "DCA", label: "DCA Bot" },
+                  { kind: "TWAP", label: "TWAP" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.kind}
+                  type="button"
+                  className={kind === tab.kind ? "active" : ""}
+                  onClick={() => setKind(tab.kind)}
                 >
-                  <option value="TAKER">Taker</option>
-                  <option value="MAKER">Maker</option>
-                </select>
-              </Field>
-              <div className="rota-bots__flow-note">
-                <strong>
-                  {style === "TAKER" ? "Taker flow" : "Maker flow"}
-                </strong>
-                <span>
-                  {style === "TAKER"
-                    ? "Market slices prioritize execution. Thin liquidity or partial fills can extend the schedule and increase slippage."
-                    : "Post-only limit slices are cancelled and repriced when unfilled, so completion can extend beyond the selected duration."}
-                </span>
-              </div>
-              <Field
-                label={`Total amount (${quoteAsset})`}
-                note={
-                  currentMarkPrice > 0
-                    ? `≈ ${formatNumber(twapEstimatedQuantity)} ${baseAsset} total · ${twapSliceCount} slices · ≈ ${formatNumber(twapSliceNotional, 2)} ${quoteAsset} each`
-                    : "Waiting for the current mark price."
-                }
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={twapTotalNotional}
-                  onChange={(e) => setTwapTotalNotional(e.target.value)}
-                />
-              </Field>
-              <Field label="Duration (minutes)">
-                <input
-                  type="number"
-                  min="1"
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(e.target.value)}
-                />
-              </Field>
-              <Field label="Slice interval (seconds)">
-                <input
-                  type="number"
-                  min="5"
-                  value={intervalSeconds}
-                  onChange={(e) => setIntervalSeconds(e.target.value)}
-                />
-              </Field>
-              <label
-                className="rota-bots__check"
-                title="Only reduces an existing position; it cannot increase or reverse your exposure."
-              >
-                <input
-                  type="checkbox"
-                  checked={reduceOnly}
-                  onChange={(e) => setReduceOnly(e.target.checked)}
-                />{" "}
-                Reduce only (close position)
-              </label>
+                  {tab.label}
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="rota-bots__grid">
-              <Field label="Direction">
-                <select
-                  value={direction}
-                  onChange={(e) => setDirection(e.target.value)}
-                >
-                  <option>LONG</option>
-                  <option>SHORT</option>
-                </select>
-              </Field>
-              <Field label={`Order size per grid (${baseAsset})`}>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                />
-              </Field>
-              <Field
-                label="Grid levels"
-                note="Open entry orders at 1×, 2× … the selected distance (maximum 5)."
-              >
-                <input
-                  type="number"
-                  min="1"
-                  max="5"
-                  step="1"
-                  value={gridLevels}
-                  onChange={(e) => setGridLevels(e.target.value)}
-                />
-              </Field>
-              <Field label="Distance unit">
-                <select
-                  value={spreadUnit}
-                  onChange={(event) =>
-                    changeSpreadUnit(event.target.value as SpreadUnit)
+            <p className="rota-bots__hint">
+              {kind === "TWAP"
+                ? "Split one order into smaller time-based slices."
+                : kind === "DCA"
+                  ? "Average into one position and take profit on the entire round."
+                  : "Build independent maker grid lots with cost-adjusted reduce-only exits."}
+            </p>
+            <p className="rota-bots__current-market">
+              {baseAsset} ·{" "}
+              {trading.marginMode === "ISOLATED" ? "Isolated" : "Cross"} ·{" "}
+              {trading.leverage}×
+            </p>
+            {kind === "DCA" ? (
+              <DCAForm
+                settings={dcaSettings}
+                minimumMargins={minimumMargins}
+                onChange={setDcaSettings}
+                quoteAsset={quoteAsset}
+                onPreview={dcaPreview.preview}
+                onClearPreview={dcaPreview.clear}
+                previewVisible={dcaPreview.visible}
+                previewError={dcaPreview.error}
+              />
+            ) : kind === "TWAP" ? (
+              <div className="rota-bots__grid">
+                <Field label="Side">
+                  <select
+                    value={side}
+                    onChange={(e) => setSide(e.target.value)}
+                  >
+                    <option>BUY</option>
+                    <option>SELL</option>
+                  </select>
+                </Field>
+                <Field label="Execution">
+                  <select
+                    value={style}
+                    onChange={(e) => setStyle(e.target.value)}
+                  >
+                    <option value="TAKER">Taker</option>
+                    <option value="MAKER">Maker</option>
+                  </select>
+                </Field>
+                <div className="rota-bots__flow-note">
+                  <strong>
+                    {style === "TAKER" ? "Taker flow" : "Maker flow"}
+                  </strong>
+                  <span>
+                    {style === "TAKER"
+                      ? "Market slices prioritize execution. Thin liquidity or partial fills can extend the schedule and increase slippage."
+                      : "Post-only limit slices are cancelled and repriced when unfilled, so completion can extend beyond the selected duration."}
+                  </span>
+                </div>
+                <Field
+                  label={`Total amount (${quoteAsset})`}
+                  note={
+                    currentMarkPrice > 0
+                      ? `≈ ${formatNumber(twapEstimatedQuantity)} ${baseAsset} total · ${twapSliceCount} slices · ≈ ${formatNumber(twapSliceNotional, 2)} ${quoteAsset} each`
+                      : "Waiting for the current mark price."
                   }
                 >
-                  <option value="BPS">BPS</option>
-                  <option value="PERCENT">Percent (%)</option>
-                  <option value="USDC">USDC</option>
-                </select>
-              </Field>
-              <Field
-                label={`Entry distance (${spreadUnit === "PERCENT" ? "%" : spreadUnit})`}
-                note={spreadNote(entrySpread)}
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step={spreadUnit === "BPS" ? "1" : "0.01"}
-                  value={entrySpread}
-                  onChange={(e) => setEntrySpread(e.target.value)}
-                />
-              </Field>
-              <Field
-                label={`Target net profit (${spreadUnit === "PERCENT" ? "%" : spreadUnit})`}
-                note={spreadNote(profitSpread)}
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step={spreadUnit === "BPS" ? "1" : "0.01"}
-                  value={profitSpread}
-                  onChange={(e) => setProfitSpread(e.target.value)}
-                />
-              </Field>
-              <Field label="Fee & safety buffer (bps)">
-                <input
-                  type="number"
-                  min="0"
-                  max="500"
-                  value={feeBuffer}
-                  onChange={(e) => setFeeBuffer(e.target.value)}
-                />
-              </Field>
-              <Field
-                label={`Max inventory (${baseAsset})`}
-                note={`At least ${Number(gridLevels) * 2 + 1}× order size: filled lots plus ${gridLevels || 0} continuously maintained entry levels.`}
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={maxInventory}
-                  onChange={(e) => setMaxInventory(e.target.value)}
-                />
-              </Field>
-              <Field label={`Max notional (${quoteAsset})`}>
-                <input
-                  type="number"
-                  min="1"
-                  value={maxNotional}
-                  onChange={(e) => setMaxNotional(e.target.value)}
-                />
-              </Field>
-              <Field label={`Daily loss limit (${quoteAsset})`}>
-                <input
-                  type="number"
-                  min="1"
-                  value={maxDailyLoss}
-                  onChange={(e) => setMaxDailyLoss(e.target.value)}
-                />
-              </Field>
-              <div className="rota-bots__flow-note rota-bots__flow-note--wide">
-                <strong>Always-in-market grid flow</strong>
-                <span>
-                  Rota first opens one order-size base position at market, then
-                  places {gridLevels || 0} entry levels in the{" "}
-                  {direction === "LONG"
-                    ? "buy direction below"
-                    : "sell direction above"}{" "}
-                  the fill and a reduce-only profit exit on the opposite side.
-                  Every entry fill gets its own reduce-only exit and the bot
-                  adds a new outer entry so {gridLevels || 0} pending entry
-                  levels remain. If every bot lot exits, all pending entries are
-                  cancelled before the cycle restarts at market.
-                </span>
-              </div>
-            </div>
-          )}
-          {kind === "TWAP" && twapValidationError && (
-            <div className="rota-bots__validation">
-              <AlertTriangle size={14} /> {twapValidationError}
-            </div>
-          )}
-          {kind === "MARKET_MAKER" && makerValidationError && (
-            <div className="rota-bots__validation">
-              <AlertTriangle size={14} /> {makerValidationError}
-            </div>
-          )}
-          <div className="rota-bots__warning">
-            <AlertTriangle size={14} /> Bots continue while this browser is
-            closed.
-          </div>
-          <button
-            className="rota-bots__submit"
-            disabled={
-              submitting ||
-              !wallet ||
-              !market ||
-              Boolean(twapValidationError || makerValidationError)
-            }
-          >
-            {submitting
-              ? "Starting…"
-              : wallet
-                ? `Start ${kind === "TWAP" ? "TWAP" : "Grid Market Maker"}`
-                : "Connect wallet"}
-          </button>
-        </form>
-        <div className="rota-bots__list">
-          <div className="rota-bots__list-title">
-            <span>My bots</span>
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              aria-label="Refresh bots"
-            >
-              <RefreshCw size={14} />
-            </button>
-          </div>
-          <div className="rota-bots__list-switch" role="tablist">
-            <button
-              type="button"
-              className={listView === "running" ? "active" : ""}
-              onClick={() => setListView("running")}
-            >
-              Running <span>{runningCount}</span>
-            </button>
-            <button
-              type="button"
-              className={listView === "history" ? "active" : ""}
-              onClick={() => setListView("history")}
-            >
-              History <span>{historyCount}</span>
-            </button>
-          </div>
-          {error && <div className="rota-bots__error">{error}</div>}
-          {loading ? (
-            <div className="rota-bots__empty">Loading bots…</div>
-          ) : visibleBots.length === 0 ? (
-            <div className="rota-bots__empty">
-              {listView === "running" ? (
-                <Bot size={22} />
-              ) : (
-                <Clock3 size={22} />
-              )}
-              {listView === "running"
-                ? "No running bots."
-                : "No bot history yet."}
-            </div>
-          ) : (
-            visibleBots.map((item) => {
-              const expanded = expandedBotId === item.id;
-              return (
-                <article
-                  className={`rota-bots__item ${expanded ? "is-expanded" : ""}`}
-                  key={item.id}
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={twapTotalNotional}
+                    onChange={(e) => setTwapTotalNotional(e.target.value)}
+                  />
+                </Field>
+                <Field label="Duration (minutes)">
+                  <input
+                    type="number"
+                    min="1"
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(e.target.value)}
+                  />
+                </Field>
+                <Field label="Slice interval (seconds)">
+                  <input
+                    type="number"
+                    min="5"
+                    value={intervalSeconds}
+                    onChange={(e) => setIntervalSeconds(e.target.value)}
+                  />
+                </Field>
+                <label
+                  className="rota-bots__check"
+                  title="Only reduces an existing position; it cannot increase or reverse your exposure."
                 >
-                  <div className="rota-bots__item-summary">
+                  <input
+                    type="checkbox"
+                    checked={reduceOnly}
+                    onChange={(e) => setReduceOnly(e.target.checked)}
+                  />{" "}
+                  Reduce only (close position)
+                </label>
+              </div>
+            ) : (
+              <div className="rota-bots__grid">
+                <div
+                  className="rota-bots__switch rota-bots__direction rota-bots__grid-direction"
+                  aria-label="Grid direction"
+                >
+                  {["LONG", "SHORT"].map((value) => (
                     <button
                       type="button"
-                      className="rota-bots__expand"
-                      onClick={() =>
-                        setExpandedBotId(expanded ? null : item.id)
+                      key={value}
+                      aria-pressed={direction === value}
+                      className={
+                        direction === value
+                          ? `active is-${value.toLowerCase()}`
+                          : ""
                       }
-                      aria-expanded={expanded}
-                      title="Show execution log"
+                      onClick={() => setDirection(value)}
                     >
-                      {expanded ? (
-                        <ChevronDown size={14} />
-                      ) : (
-                        <ChevronRight size={14} />
-                      )}
+                      {value === "LONG" ? "Long" : "Short"}
                     </button>
-                    <div className="rota-bots__item-main">
-                      <div className="rota-bots__identity">
-                        <strong>
-                          {item.kind === "MARKET_MAKER"
-                            ? "Grid Market Maker"
-                            : "TWAP"}
-                        </strong>
-                        <span>{item.symbol.replace("PERP_", "")}</span>
-                      </div>
-                      <BotSettingsSummary
-                        bot={item}
-                        markPrice={currentMarkPrice}
-                      />
-                      {item.last_error && (
-                        <div className="rota-bots__item-warning">
-                          <AlertTriangle size={11} />
-                          <span>{item.last_error}</span>
+                  ))}
+                </div>
+                <Field label={`Order size per grid (${baseAsset})`}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="Grid levels"
+                  note="Open entry orders at 1×, 2× … the selected distance (maximum 5)."
+                >
+                  <input
+                    type="number"
+                    min="1"
+                    max="5"
+                    step="1"
+                    value={gridLevels}
+                    onChange={(e) => setGridLevels(e.target.value)}
+                  />
+                </Field>
+                <Field label="Distance unit">
+                  <select
+                    value={spreadUnit}
+                    onChange={(event) =>
+                      changeSpreadUnit(event.target.value as SpreadUnit)
+                    }
+                  >
+                    <option value="BPS">BPS</option>
+                    <option value="PERCENT">Percent (%)</option>
+                    <option value="USDC">USDC</option>
+                  </select>
+                </Field>
+                <Field
+                  label={`Entry distance (${spreadUnit === "PERCENT" ? "%" : spreadUnit})`}
+                  note={spreadNote(entrySpread)}
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step={spreadUnit === "BPS" ? "1" : "0.01"}
+                    value={entrySpread}
+                    onChange={(e) => setEntrySpread(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label={`Target net profit (${spreadUnit === "PERCENT" ? "%" : spreadUnit})`}
+                  note={spreadNote(profitSpread)}
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step={spreadUnit === "BPS" ? "1" : "0.01"}
+                    value={profitSpread}
+                    onChange={(e) => setProfitSpread(e.target.value)}
+                  />
+                </Field>
+                <Field label="Fee & safety buffer (bps)">
+                  <input
+                    type="number"
+                    min="0"
+                    max="500"
+                    value={feeBuffer}
+                    onChange={(e) => setFeeBuffer(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label={`Max inventory (${baseAsset})`}
+                  note={`At least ${Number(gridLevels) * 2 + 1}× order size: filled lots plus ${gridLevels || 0} continuously maintained entry levels.`}
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={maxInventory}
+                    onChange={(e) => setMaxInventory(e.target.value)}
+                  />
+                </Field>
+                <Field label={`Max notional (${quoteAsset})`}>
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxNotional}
+                    onChange={(e) => setMaxNotional(e.target.value)}
+                  />
+                </Field>
+                <Field label={`Daily loss limit (${quoteAsset})`}>
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxDailyLoss}
+                    onChange={(e) => setMaxDailyLoss(e.target.value)}
+                  />
+                </Field>
+                <div className="rota-bots__flow-note rota-bots__flow-note--wide">
+                  <strong>Always-in-market grid flow</strong>
+                  <span>
+                    Rota first opens one order-size base position at market,
+                    then places {gridLevels || 0} entry levels in the{" "}
+                    {direction === "LONG"
+                      ? "buy direction below"
+                      : "sell direction above"}{" "}
+                    the fill and a reduce-only profit exit on the opposite side.
+                    Every entry fill gets its own reduce-only exit and the bot
+                    adds a new outer entry so {gridLevels || 0} pending entry
+                    levels remain. If every bot lot exits, all pending entries
+                    are cancelled before the cycle restarts at market.
+                  </span>
+                </div>
+              </div>
+            )}
+            {kind === "TWAP" && twapValidationError && (
+              <div className="rota-bots__validation">
+                <AlertTriangle size={14} /> {twapValidationError}
+              </div>
+            )}
+            {kind === "MARKET_MAKER" && makerValidationError && (
+              <div className="rota-bots__validation">
+                <AlertTriangle size={14} /> {makerValidationError}
+              </div>
+            )}
+            {dcaValidationError && (
+              <div className="rota-bots__validation">
+                <AlertTriangle size={14} /> {dcaValidationError}
+              </div>
+            )}
+            <div className="rota-bots__warning">
+              <AlertTriangle size={14} /> Bots continue while this browser is
+              closed.
+            </div>
+            {error && (
+              <div className="rota-bots__error" role="alert">
+                {error}
+              </div>
+            )}
+            <button
+              className="rota-bots__submit"
+              disabled={
+                trading.isLoading ||
+                submitting ||
+                !wallet ||
+                !market ||
+                Boolean(
+                  twapValidationError ||
+                  makerValidationError ||
+                  dcaValidationError,
+                )
+              }
+            >
+              {submitting
+                ? "Starting…"
+                : wallet
+                  ? `Start ${kind === "TWAP" ? "TWAP" : kind === "DCA" ? "DCA" : "Grid & Market Maker"}`
+                  : "Connect wallet"}
+            </button>
+          </form>
+        )}
+        {view === "list" && (
+          <div className="rota-bots__list">
+            <div className="rota-bots__list-title">
+              <span>My bots</span>
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                aria-label="Refresh bots"
+              >
+                <RefreshCw size={14} />
+              </button>
+            </div>
+            <div className="rota-bots__list-switch" role="tablist">
+              <button
+                type="button"
+                className={listView === "running" ? "active" : ""}
+                onClick={() => setListView("running")}
+              >
+                Running <span>{runningCount}</span>
+              </button>
+              <button
+                type="button"
+                className={listView === "history" ? "active" : ""}
+                onClick={() => setListView("history")}
+              >
+                History <span>{historyCount}</span>
+              </button>
+            </div>
+            {error && <div className="rota-bots__error">{error}</div>}
+            {loading ? (
+              <div className="rota-bots__empty">Loading bots…</div>
+            ) : visibleBots.length === 0 ? (
+              <div className="rota-bots__empty">
+                {listView === "running" ? (
+                  <Bot size={22} />
+                ) : (
+                  <Clock3 size={22} />
+                )}
+                {listView === "running"
+                  ? "No running bots."
+                  : "No bot history yet."}
+              </div>
+            ) : (
+              visibleBots.map((item) => {
+                const expanded = expandedBotId === item.id;
+                return (
+                  <article
+                    className={`rota-bots__item ${expanded ? "is-expanded" : ""}`}
+                    key={item.id}
+                  >
+                    <div className="rota-bots__item-summary">
+                      <button
+                        type="button"
+                        className="rota-bots__expand"
+                        onClick={() =>
+                          setExpandedBotId(expanded ? null : item.id)
+                        }
+                        aria-expanded={expanded}
+                        title="Show execution log"
+                      >
+                        {expanded ? (
+                          <ChevronDown size={14} />
+                        ) : (
+                          <ChevronRight size={14} />
+                        )}
+                      </button>
+                      <div className="rota-bots__item-main">
+                        <div className="rota-bots__identity">
+                          <strong>
+                            {item.kind === "MARKET_MAKER"
+                              ? "Grid & Market Maker"
+                              : item.kind === "DCA"
+                                ? "DCA Bot"
+                                : "TWAP"}
+                          </strong>
+                          <span>{item.symbol.replace("PERP_", "")}</span>
                         </div>
-                      )}
+                        <BotSettingsSummary
+                          bot={item}
+                          markPrice={currentMarkPrice}
+                        />
+                        {item.last_error && (
+                          <div className="rota-bots__item-warning">
+                            <AlertTriangle size={11} />
+                            <span>{item.last_error}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        className={`rota-bots__status rota-bots__status--${item.status}`}
+                      >
+                        {item.status}
+                      </div>
+                      <div className="rota-bots__actions">
+                        {item.status === "active" ? (
+                          <button
+                            type="button"
+                            onClick={() => void act(item, "pause")}
+                            title="Pause"
+                          >
+                            <Pause size={14} />
+                          </button>
+                        ) : item.status === "paused" ? (
+                          <button
+                            type="button"
+                            onClick={() => void act(item, "resume")}
+                            title="Resume"
+                          >
+                            <Play size={14} />
+                          </button>
+                        ) : null}
+                        {isRunningBot(item) ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingAction({ bot: item, action: "stop" })
+                            }
+                            title="Stop and keep history"
+                          >
+                            <Square size={13} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingAction({ bot: item, action: "delete" })
+                            }
+                            title="Delete history permanently"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div
-                      className={`rota-bots__status rota-bots__status--${item.status}`}
-                    >
-                      {item.status}
-                    </div>
-                    <div className="rota-bots__actions">
-                      {item.status === "active" ? (
-                        <button
-                          type="button"
-                          onClick={() => void act(item, "pause")}
-                          title="Pause"
-                        >
-                          <Pause size={14} />
-                        </button>
-                      ) : item.status === "paused" ? (
-                        <button
-                          type="button"
-                          onClick={() => void act(item, "resume")}
-                          title="Resume"
-                        >
-                          <Play size={14} />
-                        </button>
-                      ) : null}
-                      {isRunningBot(item) ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPendingAction({ bot: item, action: "stop" })
-                          }
-                          title="Stop and keep history"
-                        >
-                          <Square size={13} />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPendingAction({ bot: item, action: "delete" })
-                          }
-                          title="Delete history permanently"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {expanded && <BotExecutionLog bot={item} />}
-                </article>
-              );
-            })
-          )}
-        </div>
+                    {expanded && <BotExecutionLog bot={item} />}
+                  </article>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
       <BotActionDialog
         pending={pendingAction}
@@ -863,7 +975,8 @@ function BotActionDialog({
 }) {
   const isDelete = pending?.action === "delete";
   const isMakerStop =
-    pending?.action === "stop" && pending.bot.kind === "MARKET_MAKER";
+    pending?.action === "stop" &&
+    (pending.bot.kind === "MARKET_MAKER" || pending.bot.kind === "DCA");
 
   return (
     <Dialog
@@ -933,6 +1046,44 @@ function BotSettingsSummary({
   markPrice: number;
 }) {
   const baseAsset = bot.symbol.split("_")[1] || "base";
+  if (bot.kind === "DCA") {
+    const cycle = (bot.progress.dca || {}) as Record<string, unknown>;
+    const lots = (bot.progress.lots || []) as Array<{
+      Price: number;
+      Quantity: number;
+    }>;
+    const quantity = lots.reduce((sum, lot) => sum + lot.Quantity, 0);
+    const average =
+      quantity > 0
+        ? lots.reduce((sum, lot) => sum + lot.Price * lot.Quantity, 0) /
+          quantity
+        : 0;
+    return (
+      <div className="rota-bots__metrics">
+        <span>
+          <b>{textValue(bot.config, "direction")}</b> ·{" "}
+          {numericValue(bot.config, "leverage")}×
+        </span>
+        <span>
+          DCA orders <b>{numericValue(cycle, "dca_orders")}</b> /{" "}
+          {numericValue(bot.config, "max_dca_orders")}
+        </span>
+        <span>
+          Rounds <b>{numericValue(cycle, "completed_rounds")}</b>
+        </span>
+        <span>
+          Average entry <b>{average > 0 ? formatNumber(average) : "Waiting"}</b>
+        </span>
+        <span>
+          Position <b>{formatNumber(quantity)}</b> {baseAsset}
+        </span>
+        <span>
+          Step <b>{numericValue(bot.config, "price_step_percent")}%</b> · Take
+          profit <b>{numericValue(bot.config, "take_profit_percent")}%</b>
+        </span>
+      </div>
+    );
+  }
   if (bot.kind === "TWAP") {
     const total = numericValue(bot.config, "total_quantity");
     const executed = Math.min(
@@ -1027,8 +1178,8 @@ function BotExecutionLog({ bot }: { bot: TradingBot }) {
       </div>
       {orders.length === 0 ? (
         <div className="rota-bots__log-empty">
-          No order attempts recorded yet. TWAP slices and grid orders will
-          appear here after execution starts.
+          No order attempts recorded yet. Bot orders will appear here after
+          execution starts.
         </div>
       ) : (
         <div className="rota-bots__log-scroll">
@@ -1051,15 +1202,25 @@ function BotExecutionLog({ bot }: { bot: TradingBot }) {
                     {formatDateTime(order.updated_at || order.created_at)}
                   </td>
                   <td>
-                    {order.purpose === "twap_slice"
-                      ? "TWAP slice"
-                      : order.purpose === "bootstrap"
-                        ? "Base inventory"
-                        : order.purpose === "entry"
-                          ? "Grid entry"
-                          : order.purpose === "stop_close"
-                            ? "Stop close"
-                            : "Profit exit"}
+                    {order.purpose.startsWith("dca_")
+                      ? (
+                          {
+                            dca_base: "DCA base",
+                            dca_entry: "DCA order",
+                            dca_take_profit: "Round take profit",
+                            dca_stop_loss: "Stop loss",
+                            dca_stop_condition: "Stop condition",
+                          } as Record<string, string>
+                        )[order.purpose] || order.purpose
+                      : order.purpose === "twap_slice"
+                        ? "TWAP slice"
+                        : order.purpose === "bootstrap"
+                          ? "Base inventory"
+                          : order.purpose === "entry"
+                            ? "Grid entry"
+                            : order.purpose === "stop_close"
+                              ? "Stop close"
+                              : "Profit exit"}
                   </td>
                   <td className={`is-${order.side.toLowerCase()}`}>
                     {order.side}
