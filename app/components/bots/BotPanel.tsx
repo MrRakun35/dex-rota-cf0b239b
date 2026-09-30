@@ -46,7 +46,6 @@ import {
 } from "./DCAForm";
 import { useBotTradingSettings } from "./OrderEntryMode";
 import { useDCAPreview } from "./useDCAPreview";
-import "./bots.css";
 
 const cleanSymbol = (value?: string) =>
   value && /^PERP_[A-Z0-9]+_[A-Z0-9]+$/.test(value) ? value : "";

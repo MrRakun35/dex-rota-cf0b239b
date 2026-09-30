@@ -51,7 +51,6 @@ import {
   pauseSubscription,
   resumeSubscription,
 } from "@/services/copy-trade";
-import "./copy-trade.css";
 
 const windows: Array<{ value: LeaderWindow; label: string }> = [
   { value: "24h", label: "24H" },

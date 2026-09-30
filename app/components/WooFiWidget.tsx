@@ -1,10 +1,8 @@
 import { useCallback } from "react";
-import { useWalletConnector } from "@orderly.network/hooks";
 import { WooFiSwapWidgetReact } from "woofi-swap-widget-kit/react";
+import { useWalletConnector } from "@orderly.network/hooks";
 import { getRuntimeConfig } from "../utils/runtime-config";
-
 import "woofi-swap-widget-kit/style.css";
-import "../styles/woofi-widget.css";
 
 export default function WooFiWidget() {
   const { wallet, setChain, connectedChain, connect } = useWalletConnector();
@@ -20,7 +18,7 @@ export default function WooFiWidget() {
         setChain({ chainId: Number(targetChain.chainId) });
       }
     },
-    [setChain]
+    [setChain],
   );
 
   return (
@@ -39,4 +37,3 @@ export default function WooFiWidget() {
     />
   );
 }
-

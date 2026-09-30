@@ -29,7 +29,6 @@ import {
 } from "@/services/market-intelligence";
 import { summarizePositionExposure } from "./position-exposure";
 import { calculatePositionUnrealizedPnL } from "./position-pnl";
-import "./intelligence.css";
 
 type Metric =
   | "overview"
