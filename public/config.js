@@ -25,9 +25,9 @@ window.__RUNTIME_CONFIG__ = {
     "Trading,CopyTrade,Portfolio,Markets,Intelligence,Swap,Rewards",
   VITE_COPYTRADE_API_URL: "https://rota.algobotapp.com",
   VITE_CUSTOM_MENUS: "AlgoBotApp,https://algobotapp.com/",
-  VITE_ENABLE_SERVICE_DISCLAIMER_DIALOG: "false",
+  VITE_ENABLE_SERVICE_DISCLAIMER_DIALOG: "true",
   VITE_ENABLE_CAMPAIGNS: "false",
-  VITE_TELEGRAM_URL: "https://t.me/rota_finance",
+  VITE_TELEGRAM_URL: "https://t.me/ROTA_DEX",
   VITE_DISCORD_URL: "",
   VITE_TWITTER_URL: "https://x.com/ROTA_finance",
   VITE_SEO_SITE_NAME:
