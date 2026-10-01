@@ -1,7 +1,11 @@
 import { Outlet, useLocation } from "react-router-dom";
-import { PortfolioLayoutWidget } from "@orderly.network/portfolio";
-import { useOrderlyConfig } from "@/utils/config";
+import { Bell } from "lucide-react";
+import {
+  PortfolioLayoutWidget,
+  usePortfolioLayoutScript,
+} from "@orderly.network/portfolio";
 import { useNav } from "@/hooks/useNav";
+import { useOrderlyConfig } from "@/utils/config";
 
 export default function PortfolioLayout() {
   const location = useLocation();
@@ -9,9 +13,18 @@ export default function PortfolioLayout() {
 
   const { onRouteChange } = useNav();
   const config = useOrderlyConfig();
+  const { items } = usePortfolioLayoutScript({ current: pathname });
 
   return (
     <PortfolioLayoutWidget
+      items={[
+        ...items,
+        {
+          name: "Telegram",
+          href: "/portfolio/notifications",
+          icon: <Bell size={20} />,
+        },
+      ]}
       footerProps={config.scaffold.footerProps}
       mainNavProps={{
         ...config.scaffold.mainNavProps,
@@ -29,4 +42,3 @@ export default function PortfolioLayout() {
     </PortfolioLayoutWidget>
   );
 }
-

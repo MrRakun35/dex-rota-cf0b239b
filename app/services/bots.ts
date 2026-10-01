@@ -1,9 +1,6 @@
-import { getRuntimeConfig } from "../utils/runtime-config";
+import { getCopyTradeAPIURL } from "../utils/copy-trade-api-url";
 
-const apiURL = () =>
-  (
-    getRuntimeConfig("VITE_COPYTRADE_API_URL") || "https://rota.algobotapp.com"
-  ).replace(/\/$/, "");
+const apiURL = getCopyTradeAPIURL;
 
 export type BotKind = "TWAP" | "MARKET_MAKER" | "DCA";
 export type BotStatus =

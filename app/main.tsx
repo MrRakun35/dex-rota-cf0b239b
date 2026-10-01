@@ -13,6 +13,9 @@ const PerpLayout = lazy(() => import("./pages/perp/Layout"));
 const PerpIndex = lazy(() => import("./pages/perp/Index"));
 const PerpSymbol = lazy(() => import("./pages/perp/Symbol"));
 const PortfolioLayout = lazy(() => import("./pages/portfolio/Layout"));
+const PortfolioNotifications = lazy(
+  () => import("./pages/portfolio/Notifications"),
+);
 const PortfolioIndex = lazy(() => import("./pages/portfolio/Index"));
 const PortfolioPositions = lazy(() => import("./pages/portfolio/Positions"));
 const PortfolioOrders = lazy(() => import("./pages/portfolio/Orders"));
@@ -87,6 +90,7 @@ const router = createBrowserRouter(
             { path: "fee", element: <PortfolioFee /> },
             { path: "history", element: <PortfolioHistory /> },
             { path: "setting", element: <PortfolioSetting /> },
+            { path: "notifications", element: <PortfolioNotifications /> },
           ],
         },
         {
