@@ -151,7 +151,7 @@ jobs:
           path: |
             node_modules
             ~/.yarn/cache
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/yarn.lock') }}
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/yarn.lock', 'patches/**') }}
 
       - name: Check if only config changed
         id: check-changes

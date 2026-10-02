@@ -1,0 +1,26 @@
+diff --git a/node_modules/@orderly.network/trading/dist/index.js b/node_modules/@orderly.network/trading/dist/index.js
+index 4f33aa8..940b997 100644
+--- a/node_modules/@orderly.network/trading/dist/index.js
++++ b/node_modules/@orderly.network/trading/dist/index.js
+@@ -8078,7 +8078,7 @@ var useTradingScript = () => {
+   );
+   const [marketLayout, setMarketLayout] = hooks.useLocalStorage(
+     ORDERLY_HORIZONTAL_MARKETS_LAYOUT,
+-    "left"
++    "hide"
+   );
+   const canTrade = React12.useMemo(() => {
+     return !wrongNetwork && !disabledConnect && (state.status >= types.AccountStatusEnum.EnableTrading || state.status === types.AccountStatusEnum.EnableTradingWithoutConnected);
+diff --git a/node_modules/@orderly.network/trading/dist/index.mjs b/node_modules/@orderly.network/trading/dist/index.mjs
+index e4c774d..389616d 100644
+--- a/node_modules/@orderly.network/trading/dist/index.mjs
++++ b/node_modules/@orderly.network/trading/dist/index.mjs
+@@ -8071,7 +8071,7 @@ var useTradingScript = () => {
+   );
+   const [marketLayout, setMarketLayout] = useLocalStorage(
+     ORDERLY_HORIZONTAL_MARKETS_LAYOUT,
+-    "left"
++    "hide"
+   );
+   const canTrade = useMemo(() => {
+     return !wrongNetwork && !disabledConnect && (state.status >= AccountStatusEnum.EnableTrading || state.status === AccountStatusEnum.EnableTradingWithoutConnected);
