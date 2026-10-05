@@ -47,7 +47,9 @@ export default defineConfig(() => {
       host: true,
       proxy: {
         "/copy-api": {
-          target: "https://rota.algobotapp.com",
+          target:
+            process.env.VITE_COPYTRADE_PROXY_TARGET ||
+            "https://rota.algobotapp.com",
           changeOrigin: true,
           rewrite: (requestPath) => requestPath.replace(/^\/copy-api/, ""),
           configure: (proxy) => {

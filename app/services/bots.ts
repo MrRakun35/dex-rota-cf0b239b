@@ -10,7 +10,22 @@ export type BotStatus =
   | "completed"
   | "failed";
 
+export interface BotStatistics {
+  gross_realized_pnl: number | null;
+  profit_since: string;
+  profit_history_complete: boolean;
+  executed_orders: number;
+  filled_orders: number;
+  closing_orders: number;
+  runtime_seconds: number;
+  runtime_since: string;
+  runtime_history_complete: boolean;
+  started_at: string;
+  as_of: string;
+}
+
 export interface TradingBot {
+  statistics?: BotStatistics;
   id: string;
   wallet: string;
   account_id: string;

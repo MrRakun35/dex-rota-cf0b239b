@@ -37,6 +37,7 @@ import {
   confirmCredentialIntent,
   createCredentialIntent,
 } from "@/services/copy-trade";
+import { BotStatistics } from "./BotStatistics";
 import {
   DCAForm,
   defaultDCASettings,
@@ -916,7 +917,13 @@ export function BotPanel({
                           setExpandedBotId(expanded ? null : item.id)
                         }
                         aria-expanded={expanded}
-                        title="Show execution log"
+                        aria-controls={`bot-details-${item.id}`}
+                        title={
+                          expanded ? "Hide bot details" : "Show bot details"
+                        }
+                        aria-label={
+                          expanded ? "Hide bot details" : "Show bot details"
+                        }
                       >
                         {expanded ? (
                           <ChevronDown size={14} />
@@ -927,18 +934,31 @@ export function BotPanel({
                       <div className="rota-bots__item-main">
                         <div className="rota-bots__identity">
                           <strong>
+                            {item.symbol
+                              .replace("PERP_", "")
+                              .replace("_", " / ")}
+                          </strong>
+                          <span>
                             {item.kind === "MARKET_MAKER"
                               ? "Grid & Market Maker"
                               : item.kind === "DCA"
                                 ? "DCA Bot"
                                 : "TWAP"}
-                          </strong>
-                          <span>{item.symbol.replace("PERP_", "")}</span>
+                            {item.kind !== "TWAP" && (
+                              <>
+                                {" "}
+                                · {textValue(item.config, "direction")} ·{" "}
+                                {numericValue(item.config, "leverage") || 1}×
+                              </>
+                            )}
+                          </span>
                         </div>
-                        <BotSettingsSummary
-                          bot={item}
-                          markPrice={currentMarkPrice}
-                        />
+                        {item.kind === "TWAP" && (
+                          <BotSettingsSummary
+                            bot={item}
+                            markPrice={currentMarkPrice}
+                          />
+                        )}
                         {item.last_error && (
                           <div className="rota-bots__item-warning">
                             <AlertTriangle size={11} />
@@ -946,10 +966,14 @@ export function BotPanel({
                           </div>
                         )}
                       </div>
+                      <BotStatistics bot={item} />
                       <div
                         className={`rota-bots__status rota-bots__status--${item.status}`}
                       >
-                        {item.status}
+                        {item.status === "active"
+                          ? "Running"
+                          : item.status.charAt(0).toUpperCase() +
+                            item.status.slice(1)}
                       </div>
                       <div className="rota-bots__actions">
                         {item.status === "active" ? (
@@ -992,7 +1016,30 @@ export function BotPanel({
                         )}
                       </div>
                     </div>
-                    {expanded && <BotExecutionLog bot={item} />}
+                    {expanded && (
+                      <div
+                        className="rota-bots__details"
+                        id={`bot-details-${item.id}`}
+                      >
+                        <div className="rota-bots__details-meta">
+                          Created {formatDateTime(item.created_at)}
+                        </div>
+                        {item.kind !== "TWAP" && (
+                          <>
+                            <h3>Strategy &amp; position</h3>
+                            <BotSettingsSummary
+                              bot={item}
+                              markPrice={
+                                item.symbol === market ? currentMarkPrice : 0
+                              }
+                            />
+                            <BotStatistics bot={item} expanded />
+                          </>
+                        )}
+                        <h3>Order history</h3>
+                        <BotExecutionLog bot={item} />
+                      </div>
+                    )}
                   </article>
                 );
               })
@@ -1109,29 +1156,39 @@ function BotSettingsSummary({
           quantity
         : 0;
     return (
-      <div className="rota-bots__metrics">
-        <span>
-          <b>{textValue(bot.config, "direction")}</b> ·{" "}
-          {numericValue(bot.config, "leverage")}×
-        </span>
-        <span>
-          DCA orders <b>{numericValue(cycle, "dca_orders")}</b> /{" "}
-          {numericValue(bot.config, "max_dca_orders")}
-        </span>
-        <span>
-          Rounds <b>{numericValue(cycle, "completed_rounds")}</b>
-        </span>
-        <span>
-          Average entry <b>{average > 0 ? formatNumber(average) : "Waiting"}</b>
-        </span>
-        <span>
-          Position <b>{formatNumber(quantity)}</b> {baseAsset}
-        </span>
-        <span>
-          Step <b>{numericValue(bot.config, "price_step_percent")}%</b> · Take
-          profit <b>{numericValue(bot.config, "take_profit_percent")}%</b>
-        </span>
-      </div>
+      <dl className="rota-bots__settings-grid">
+        <div>
+          <dt>Position size</dt>
+          <dd>
+            {formatNumber(quantity)} {baseAsset}
+          </dd>
+        </div>
+        <div>
+          <dt>Average entry</dt>
+          <dd>
+            {average > 0 ? `${formatNumber(average)} USDC` : "No open position"}
+          </dd>
+        </div>
+        <div>
+          <dt>DCA orders used</dt>
+          <dd>
+            {numericValue(cycle, "dca_orders")} /{" "}
+            {numericValue(bot.config, "max_dca_orders")}
+          </dd>
+        </div>
+        <div>
+          <dt>Completed rounds</dt>
+          <dd>{numericValue(cycle, "completed_rounds")}</dd>
+        </div>
+        <div>
+          <dt>Price step</dt>
+          <dd>{numericValue(bot.config, "price_step_percent")}%</dd>
+        </div>
+        <div>
+          <dt>Take profit</dt>
+          <dd>{numericValue(bot.config, "take_profit_percent")}%</dd>
+        </div>
+      </dl>
     );
   }
   if (bot.kind === "TWAP") {
@@ -1177,37 +1234,38 @@ function BotSettingsSummary({
   const targetBPS = profit + buffer;
   const targetUSDC = markPrice > 0 ? (markPrice * targetBPS) / 10000 : 0;
   return (
-    <div className="rota-bots__metrics">
-      <span>
-        Entry{" "}
-        <b>
-          {entry} bps · {formatNumber(entry / 100, 4)}%
-        </b>
-        {markPrice > 0 && <> · ≈{formatNumber(entryUSDC, 4)} USDC</>}
-      </span>
-      <span>
-        Target{" "}
-        <b>
-          {targetBPS} bps · {formatNumber(targetBPS / 100, 4)}%
-        </b>
-        {markPrice > 0 && <> · ≈{formatNumber(targetUSDC, 4)} USDC</>}
-      </span>
-      <span>
-        Order{" "}
-        <b>
+    <dl className="rota-bots__settings-grid">
+      <div>
+        <dt>Entry distance</dt>
+        <dd>
+          {formatNumber(entry / 100, 4)}%
+          {markPrice > 0 && <small>≈ {formatNumber(entryUSDC, 4)} USDC</small>}
+        </dd>
+      </div>
+      <div>
+        <dt>Profit target + buffer</dt>
+        <dd>
+          {formatNumber(targetBPS / 100, 4)}%
+          {markPrice > 0 && <small>≈ {formatNumber(targetUSDC, 4)} USDC</small>}
+        </dd>
+      </div>
+      <div>
+        <dt>Order size per level</dt>
+        <dd>
           {formatNumber(orderSize)} {baseAsset}
-        </b>
-      </span>
-      <span>
-        Levels <b>{levels}</b>
-      </span>
-      <span>
-        Inventory{" "}
-        <b>
+        </dd>
+      </div>
+      <div>
+        <dt>Grid levels</dt>
+        <dd>{levels}</dd>
+      </div>
+      <div>
+        <dt>Max inventory</dt>
+        <dd>
           {formatNumber(inventory)} {baseAsset}
-        </b>
-      </span>
-    </div>
+        </dd>
+      </div>
+    </dl>
   );
 }
 
