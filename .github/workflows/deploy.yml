@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -16,126 +16,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check-prerequisites:
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.check_merge.outputs.should_skip }}
-    steps:
-      - name: Check if triggered by merge commit
-        id: check_merge
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-        with:
-          script: |
-            if (context.eventName !== 'push') {
-              core.setOutput('should_skip', 'false');
-              return;
-            }
-            const commit = await github.rest.repos.getCommit({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: context.sha
-            });
-            const isMerge = commit.data.parents.length > 1;
-            if (isMerge) {
-              console.log('Triggered by merge commit, skipping workflow to prevent loop');
-              core.setOutput('should_skip', 'true');
-            } else {
-              core.setOutput('should_skip', 'false');
-            }
-
   build-and-deploy:
-    needs: check-prerequisites
-    if: needs.check-prerequisites.outputs.should_skip != 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check if fork
-        id: check_fork
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-        with:
-          script: |
-            const repo = await github.rest.repos.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-            return repo.data.fork;
-
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
-
-      - name: Sync with upstream
-        id: sync_fork
-        if: steps.check_fork.outputs.result == 'true'
-        run: |
-          echo "sync_happened=false" >> $GITHUB_OUTPUT
-          git remote add upstream https://github.com/OrderlyNetworkDexCreator/dex-creator-template.git || true
-          git fetch upstream
-
-          # dex-creator API bakes literals at commit time (see github.ts getDeployYmlContentForRepo):
-          # vars.VITE_DEPLOYMENT_ENV below and OrderlyNetworkDexCreator/dex-creator-template above; forks often have no repo vars set.
-          DEPLOYMENT_ENV="mainnet"
-
-          if [ "$DEPLOYMENT_ENV" = "mainnet" ]; then
-            UPSTREAM_BRANCH="main"
-          elif [ "$DEPLOYMENT_ENV" = "staging" ]; then
-            if git rev-parse --verify upstream/staging >/dev/null 2>&1; then
-              UPSTREAM_BRANCH="staging"
-            else
-              UPSTREAM_BRANCH="main"
-            fi
-          elif [ "$DEPLOYMENT_ENV" = "qa" ]; then
-            if git rev-parse --verify upstream/qa >/dev/null 2>&1; then
-              UPSTREAM_BRANCH="qa"
-            elif git rev-parse --verify upstream/staging >/dev/null 2>&1; then
-              UPSTREAM_BRANCH="staging"
-            else
-              UPSTREAM_BRANCH="main"
-            fi
-          else
-            UPSTREAM_BRANCH="main"
-          fi
-
-          # Non-mainnet template lines (qa/staging): on merge conflicts, prefer upstream hunks.
-          # mainnet and fallback-to-main merges stay default (manual resolution if conflict).
-          MERGE_EXTRA=""
-          if [ "$UPSTREAM_BRANCH" = "qa" ] || [ "$UPSTREAM_BRANCH" = "staging" ]; then
-            MERGE_EXTRA="-X theirs"
-            echo "Merging upstream/$UPSTREAM_BRANCH with -X theirs (conflicted hunks favor upstream)"
-          fi
-
-          BEFORE_MERGE=$(git rev-parse HEAD)
-          UPSTREAM_TIP=$(git rev-parse "upstream/$UPSTREAM_BRANCH")
-
-          echo "=== Upstream sync ==="
-          echo "DEPLOYMENT_ENV=$DEPLOYMENT_ENV  →  merge target: upstream/$UPSTREAM_BRANCH"
-          echo "Local HEAD (before merge): $BEFORE_MERGE"
-          echo "Upstream tip:              $UPSTREAM_TIP"
-
-          if git merge "upstream/$UPSTREAM_BRANCH" --no-edit $MERGE_EXTRA; then
-            AFTER_MERGE=$(git rev-parse HEAD)
-
-            if [ "$BEFORE_MERGE" != "$AFTER_MERGE" ]; then
-              echo "RESULT: Merge succeeded — new commits integrated (HEAD $BEFORE_MERGE → $AFTER_MERGE). Pushing to origin."
-              echo "sync_happened=true" >> $GITHUB_OUTPUT
-              git push origin main
-            else
-              echo "RESULT: Merge succeeded — nothing to integrate (local main already contains all commits from upstream/$UPSTREAM_BRANCH)."
-              echo "         The 'Already up to date.' line above is from git merge; it means no upstream changes were missing."
-            fi
-          else
-            echo "RESULT: Merge failed — upstream could not be merged cleanly. Aborting merge."
-            git merge --abort 2>/dev/null || true
-            exit 1
-          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -159,9 +49,6 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "needs_build=true" >> $GITHUB_OUTPUT
             echo "Manual trigger detected - forcing full build"
-          elif [ "${{ steps.sync_fork.outputs.sync_happened }}" = "true" ]; then
-            echo "needs_build=true" >> $GITHUB_OUTPUT
-            echo "Fork sync happened - forcing full build"
           elif git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q -v "^public/config\.js$"; then
             echo "needs_build=true" >> $GITHUB_OUTPUT
           else
