@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { Trash2 } from "lucide-react";
+import { BotNumberInput } from "./BotNumberInput";
 
 export const defaultDCASettings = {
   direction: "LONG",
@@ -186,8 +187,7 @@ export function DCAForm({
   ) => (
     <label className="rota-bots__field" key={key}>
       <span>{label}</span>
-      <input
-        type="number"
+      <BotNumberInput
         required
         min={min}
         max={max}
@@ -338,7 +338,7 @@ export function DCAForm({
         {condition(
           "stop_loss_enabled",
           "stop_loss_percent",
-          "Stop Loss",
+          "Stop Loss · Percent",
           "Stop Loss Target (%)",
           "Adverse price change from the position's average entry. Closes the position and ends the bot.",
         )}

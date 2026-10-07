@@ -37,6 +37,7 @@ import {
   confirmCredentialIntent,
   createCredentialIntent,
 } from "@/services/copy-trade";
+import { BotNumberInput } from "./BotNumberInput";
 import { BotStatistics } from "./BotStatistics";
 import {
   DCAForm,
@@ -451,6 +452,7 @@ export function BotPanel({
                 ...base,
                 direction,
                 calculation_mode: "PERCENT",
+                distance_unit: spreadUnit,
                 entry_spread_bps: Math.max(
                   1,
                   Math.round(
@@ -628,8 +630,7 @@ export function BotPanel({
                       : "Waiting for the current mark price."
                   }
                 >
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="0"
                     step="any"
                     value={twapTotalNotional}
@@ -637,16 +638,14 @@ export function BotPanel({
                   />
                 </Field>
                 <Field label="Duration (minutes)">
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="1"
                     value={durationMinutes}
                     onChange={(e) => setDurationMinutes(e.target.value)}
                   />
                 </Field>
                 <Field label="Slice interval (seconds)">
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="5"
                     value={intervalSeconds}
                     onChange={(e) => setIntervalSeconds(e.target.value)}
@@ -687,8 +686,7 @@ export function BotPanel({
                   ))}
                 </div>
                 <Field label={`Order size per grid (${baseAsset})`}>
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="0"
                     step="any"
                     value={quantity}
@@ -699,8 +697,7 @@ export function BotPanel({
                   label="Grid levels"
                   note="Open entry orders at 1×, 2× … the selected distance (maximum 5)."
                 >
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="1"
                     max="5"
                     step="1"
@@ -724,8 +721,7 @@ export function BotPanel({
                   label={`Entry distance (${spreadUnit === "PERCENT" ? "%" : spreadUnit})`}
                   note={spreadNote(entrySpread)}
                 >
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="0"
                     step={spreadUnit === "BPS" ? "1" : "0.01"}
                     value={entrySpread}
@@ -736,8 +732,7 @@ export function BotPanel({
                   label={`Target net profit (${spreadUnit === "PERCENT" ? "%" : spreadUnit})`}
                   note={spreadNote(profitSpread)}
                 >
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="0"
                     step={spreadUnit === "BPS" ? "1" : "0.01"}
                     value={profitSpread}
@@ -745,8 +740,7 @@ export function BotPanel({
                   />
                 </Field>
                 <Field label="Fee & safety buffer (bps)">
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="0"
                     max="500"
                     value={feeBuffer}
@@ -757,8 +751,7 @@ export function BotPanel({
                   label={`Max inventory (${baseAsset})`}
                   note={`At least ${Number(gridLevels) * 2 + 1}× order size: filled lots plus ${gridLevels || 0} continuously maintained entry levels.`}
                 >
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="0"
                     step="any"
                     value={maxInventory}
@@ -766,16 +759,14 @@ export function BotPanel({
                   />
                 </Field>
                 <Field label={`Max notional (${quoteAsset})`}>
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="1"
                     value={maxNotional}
                     onChange={(e) => setMaxNotional(e.target.value)}
                   />
                 </Field>
                 <Field label={`Daily loss limit (${quoteAsset})`}>
-                  <input
-                    type="number"
+                  <BotNumberInput
                     min="1"
                     value={maxDailyLoss}
                     onChange={(e) => setMaxDailyLoss(e.target.value)}
@@ -1230,6 +1221,14 @@ function BotSettingsSummary({
   const orderSize = numericValue(bot.config, "order_quantity");
   const inventory = numericValue(bot.config, "max_inventory");
   const levels = numericValue(bot.config, "grid_levels") || 1;
+  const savedUnit = textValue(bot.config, "distance_unit");
+  const unit: SpreadUnit =
+    savedUnit === "PERCENT" || savedUnit === "USDC" ? savedUnit : "BPS";
+  const formatDistance = (bps: number) => {
+    if (unit === "USDC" && markPrice <= 0) return "— USDC";
+    const value = formatNumber(distanceFromBPS(bps, unit, markPrice), 4);
+    return unit === "PERCENT" ? `${value}%` : `${value} ${unit}`;
+  };
   const entryUSDC = markPrice > 0 ? (markPrice * entry) / 10000 : 0;
   const targetBPS = profit + buffer;
   const targetUSDC = markPrice > 0 ? (markPrice * targetBPS) / 10000 : 0;
@@ -1238,15 +1237,19 @@ function BotSettingsSummary({
       <div>
         <dt>Entry distance</dt>
         <dd>
-          {formatNumber(entry / 100, 4)}%
-          {markPrice > 0 && <small>≈ {formatNumber(entryUSDC, 4)} USDC</small>}
+          {formatDistance(entry)}
+          {unit !== "USDC" && markPrice > 0 && (
+            <small>≈ {formatNumber(entryUSDC, 4)} USDC</small>
+          )}
         </dd>
       </div>
       <div>
         <dt>Profit target + buffer</dt>
         <dd>
-          {formatNumber(targetBPS / 100, 4)}%
-          {markPrice > 0 && <small>≈ {formatNumber(targetUSDC, 4)} USDC</small>}
+          {formatDistance(targetBPS)}
+          {unit !== "USDC" && markPrice > 0 && (
+            <small>≈ {formatNumber(targetUSDC, 4)} USDC</small>
+          )}
         </dd>
       </div>
       <div>
