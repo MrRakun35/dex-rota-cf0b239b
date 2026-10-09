@@ -3,6 +3,7 @@ import { OrderlyAppProvider } from "@orderly.network/react-app";
 import type { NetworkId } from "@orderly.network/types";
 import { DemoGraduationChecker } from "@/components/DemoGraduationChecker";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import RotaAssistant from "@/components/assistant/RotaAssistant";
 import { registerRotaBots } from "@/components/bots/plugin";
 import { useOrderlyConfig } from "@/utils/config";
 import {
@@ -184,6 +185,7 @@ const OrderlyProvider = (props: { children: ReactNode }) => {
       <DemoGraduationChecker />
       <ServiceDisclaimerDialog />
       {props.children}
+      <RotaAssistant />
     </OrderlyAppProvider>
   );
 
