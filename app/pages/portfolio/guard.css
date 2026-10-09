@@ -10,6 +10,29 @@
   color: #f7ab95;
   background: rgba(247, 171, 149, 0.1);
 }
+.rg-muted {
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+}
+.rg-saved {
+  border-color: rgba(169, 152, 255, 0.25);
+}
+.rg-saved-rules {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 20px 0;
+}
+.rg-saved-rules dt {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.rg-saved-rules dd {
+  margin: 10px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .rg-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -130,6 +153,7 @@
 }
 @media (max-width: 760px) {
   .rg-metrics,
+  .rg-saved-rules,
   .rg-fields {
     grid-template-columns: 1fr;
   }

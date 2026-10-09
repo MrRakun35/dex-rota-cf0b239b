@@ -214,7 +214,9 @@ export default function PortfolioGuard() {
             ? "Guard reset. Resume paused bots individually when ready."
             : action === "emergency"
               ? "New automation entries are blocked. Bot order cleanup runs in the background."
-              : "Guard connected.",
+              : action === "deactivate"
+                ? "Guard monitoring deactivated. Saved limits are retained. Any triggered stop remains locked until you reset Guard."
+                : "Guard connected.",
       );
     } catch (err) {
       if (current.current === identity)
@@ -239,6 +241,10 @@ export default function PortfolioGuard() {
   const validation = validateGuardPolicy(policy);
   const changed =
     !!state && JSON.stringify(policy) !== JSON.stringify(state.policy);
+  const savedEvent = state?.events
+    .slice()
+    .reverse()
+    .find((event) => event.type === "settings_updated");
 
   return (
     <main className="rota-notifications rota-guard">
@@ -355,6 +361,91 @@ export default function PortfolioGuard() {
                   {state.last_error}
                 </div>
               )}
+              <section
+                className="rn-card rg-saved"
+                aria-label="Last saved Guard rules"
+              >
+                <div className="rn-card-heading">
+                  <div>
+                    <h2>Last saved Guard rules</h2>
+                    <p>
+                      These are the server settings for this trading account.
+                      Changes in the form apply only after saving.
+                    </p>
+                  </div>
+                  <span
+                    className={`rg-status ${stopped || status === "Monitoring unavailable" ? "rg-danger" : !state.policy.enabled ? "rg-muted" : ""}`}
+                  >
+                    {status === "Monitoring"
+                      ? "Active"
+                      : status === "Disabled"
+                        ? "Inactive"
+                        : status}
+                  </span>
+                </div>
+                <dl className="rg-saved-rules">
+                  <div>
+                    <dt>Monitoring</dt>
+                    <dd>{state.policy.enabled ? "Enabled" : "Disabled"}</dd>
+                  </div>
+                  <div>
+                    <dt>24-hour loss threshold</dt>
+                    <dd>
+                      {state.policy.max_loss_24h > 0
+                        ? money(state.policy.max_loss_24h)
+                        : "Rule disabled"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Exposure stop threshold</dt>
+                    <dd>
+                      {state.policy.max_notional > 0
+                        ? money(state.policy.max_notional)
+                        : "Rule disabled"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Liquidation distance threshold</dt>
+                    <dd>
+                      {state.policy.min_liquidation_distance_percent > 0
+                        ? `${state.policy.min_liquidation_distance_percent}%`
+                        : "Rule disabled"}
+                    </dd>
+                  </div>
+                </dl>
+                {savedEvent && (
+                  <p className="rg-updated">
+                    Last saved:{" "}
+                    <time dateTime={savedEvent.at}>
+                      {new Date(savedEvent.at).toLocaleString()}
+                    </time>
+                  </p>
+                )}
+                <div className="rn-save">
+                  <p>
+                    {stopped
+                      ? "A triggered stop is still locked. Deactivating monitoring does not reset Guard or resume paused bots."
+                      : !state.policy.enabled
+                        ? "Monitoring is off. Saved limits are retained for reactivation."
+                        : status === "Monitoring unavailable"
+                          ? "Monitoring could not be verified. New automation entries remain blocked while Guard data is unavailable."
+                          : "Guard monitors all positions and runs while your browser is closed."}
+                  </p>
+                  <button
+                    type="button"
+                    className="rn-secondary rg-danger-button"
+                    disabled={!!busy || !state.policy.enabled}
+                    onClick={() =>
+                      void run("deactivate", "", "PUT", {
+                        ...state.policy,
+                        enabled: false,
+                      })
+                    }
+                  >
+                    {busy === "deactivate" ? "Deactivating…" : "Deactivate"}
+                  </button>
+                </div>
+              </section>
               <form
                 className="rn-card"
                 onSubmit={(event) => {

@@ -96,6 +96,87 @@ async function click(label: string) {
 }
 
 describe("Rota Guard", () => {
+  it("shows persisted rules separately from draft changes and deactivates the saved policy", async () => {
+    localStorage.setItem(
+      `rota-copytrade-session:${mocks.account.address}`,
+      "existing",
+    );
+    const saved = state({
+      events: [{ type: "settings_updated", at: "2026-10-09T12:00:00Z" }],
+    });
+    mocks.request.mockResolvedValue(saved);
+    await render();
+    const summary = container.querySelector(
+      '[aria-label="Last saved Guard rules"]',
+    )!;
+    expect(summary.textContent).toContain("Active");
+    expect(summary.textContent).toContain("100 USDC");
+    expect(summary.textContent).toContain("5%");
+    expect(summary.querySelector("time")?.dateTime).toBe(
+      "2026-10-09T12:00:00Z",
+    );
+    await act(async () =>
+      container
+        .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+        .click(),
+    );
+    expect(summary.textContent).toContain("Active");
+    expect(summary.textContent).toContain("Enabled");
+    const disabled = state({ policy: { ...saved.policy, enabled: false } });
+    mocks.request.mockResolvedValue(disabled);
+    await click("Deactivate");
+    expect(mocks.request).toHaveBeenCalledWith(
+      mocks.account.address,
+      "account-1",
+      "existing",
+      "",
+      "PUT",
+      { ...saved.policy, enabled: false },
+    );
+    expect(summary.textContent).toContain("Inactive");
+    expect(summary.textContent).toContain("100 USDC");
+    expect(summary.querySelector<HTMLButtonElement>("button")?.disabled).toBe(
+      true,
+    );
+  });
+  it("keeps saved rules enabled when deactivation fails", async () => {
+    localStorage.setItem(
+      `rota-copytrade-session:${mocks.account.address}`,
+      "existing",
+    );
+    await render();
+    mocks.request.mockImplementation(
+      async (_wallet, _account, _token, _path, method) => {
+        if (method === "PUT") throw new Error("Unable to deactivate");
+        return state();
+      },
+    );
+    await click("Deactivate");
+    const summary = container.querySelector(
+      '[aria-label="Last saved Guard rules"]',
+    )!;
+    expect(summary.textContent).toContain("Enabled");
+    expect(summary.querySelector<HTMLButtonElement>("button")?.disabled).toBe(
+      false,
+    );
+  });
+  it("shows unavailable monitoring and disabled individual rules without claiming active protection", async () => {
+    localStorage.setItem(
+      `rota-copytrade-session:${mocks.account.address}`,
+      "existing",
+    );
+    const saved = state();
+    mocks.request.mockResolvedValue(
+      state({ policy: { ...saved.policy, max_notional: 0 }, snapshot: null }),
+    );
+    await render();
+    const summary = container.querySelector(
+      '[aria-label="Last saved Guard rules"]',
+    )!;
+    expect(summary.textContent).toContain("Monitoring unavailable");
+    expect(summary.textContent).toContain("Rule disabled");
+    expect(summary.textContent).not.toContain("Active");
+  });
   it("authorizes a trading key without withdrawal scope and binds requests to the current account", async () => {
     await render();
     await click("Connect Guard");
