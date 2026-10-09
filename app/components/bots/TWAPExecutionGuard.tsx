@@ -83,17 +83,34 @@ export function TWAPExecutionGuard({
     },
   ] as const;
   return (
-    <div className="rota-twap-execution-guard">
-      <label className="rota-bots__check">
-        <input
-          type="checkbox"
-          checked={settings.enabled}
-          onChange={(event) =>
-            onChange({ ...settings, enabled: event.target.checked })
-          }
-        />
+    <section
+      className="rota-twap-execution-guard"
+      data-enabled={settings.enabled}
+      aria-label="Liquidity & price protection"
+    >
+      <div className="rota-twap-execution-guard__header">
+        <span className="rota-twap-execution-guard__badge">TWAP add-on</span>
+        <button
+          type="button"
+          className="rota-twap-execution-guard__toggle"
+          aria-label="Liquidity & price protection"
+          aria-pressed={settings.enabled}
+          onClick={() => onChange({ ...settings, enabled: !settings.enabled })}
+        >
+          {settings.enabled ? "Enabled" : "Enable"}
+        </button>
+      </div>
+      <strong className="rota-twap-execution-guard__title">
         Liquidity & price protection
-      </label>
+      </strong>
+      <p className="rota-twap-execution-guard__description">
+        Add market checks to every TWAP slice. Checks Orderly liquidity and
+        compares prices with Binance and Coinbase before sending an order.
+      </p>
+      <p className="rota-twap-execution-guard__behavior">
+        If liquidity is insufficient, prices diverge, or a source is
+        unavailable, the slice waits and retries.
+      </p>
       {settings.enabled && (
         <>
           <div className="rota-bots__grid">
@@ -113,19 +130,16 @@ export function TWAPExecutionGuard({
             ))}
           </div>
           <div className="rota-bots__flow-note">
-            Checks Orderly spread, depth and estimated price impact, plus price
-            deviation against Binance and Coinbase spot prices. Coverage counts
-            liquidity inside the price impact limit.
+            Coverage counts liquidity inside the price impact limit. Binance and
+            Coinbase spot prices are compared in USDC.
             <span>
-              USD quotes are converted to USDC. If prices diverge, liquidity is
-              insufficient, or either source is unavailable, the slice waits and
-              retries. Unsupported markets also wait. The schedule may extend,
-              including for reduce-only orders. This check does not guarantee
-              the final fill price.
+              Unsupported markets wait. The schedule may extend, including for
+              reduce-only orders. This check does not guarantee the final fill
+              price.
             </span>
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }

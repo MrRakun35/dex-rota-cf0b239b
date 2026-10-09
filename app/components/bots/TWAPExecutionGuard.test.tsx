@@ -69,16 +69,22 @@ describe("TWAP execution protection", () => {
     document.body.append(container);
     root = createRoot(container);
     act(() => root?.render(<Harness />));
-    const toggle = container.querySelector<HTMLInputElement>(
-      'input[type="checkbox"]',
+    const toggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Liquidity & price protection"]',
     )!;
-    expect(toggle.checked).toBe(false);
+    expect(toggle.type).toBe("button");
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(container.textContent).toContain("TWAP add-on");
+    expect(container.textContent).toContain("Binance and Coinbase");
+    expect(container.textContent).toContain("slice waits and retries");
     expect(container.textContent).not.toContain("Maximum spread");
     act(() => toggle.click());
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
     expect(container.textContent).toContain("Maximum spread (%)");
     expect(container.textContent).toContain("Binance and Coinbase");
     expect(container.textContent).toContain("slice waits and retries");
     act(() => toggle.click());
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
     expect(container.textContent).not.toContain("Maximum spread");
   });
 });
