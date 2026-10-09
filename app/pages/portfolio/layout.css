@@ -1,0 +1,4 @@
+/* PortfolioLayout consumes leftSideProps without forwarding its width to Scaffold. */
+.rota-portfolio-body:has(.rota-portfolio-nav[data-state="opened"]) {
+  grid-template-columns: 240px minmax(0, 1fr) !important;
+}

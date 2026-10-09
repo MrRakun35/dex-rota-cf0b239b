@@ -47,6 +47,12 @@ import {
   dcaMinimumMargins,
 } from "./DCAForm";
 import { useBotTradingSettings } from "./OrderEntryMode";
+import {
+  TWAPExecutionGuard,
+  defaultTWAPExecutionGuard,
+  twapExecutionGuardConfig,
+  twapExecutionGuardValidation,
+} from "./TWAPExecutionGuard";
 import { useDCAPreview } from "./useDCAPreview";
 
 const cleanSymbol = (value?: string) =>
@@ -153,6 +159,9 @@ export function BotPanel({
   const [durationMinutes, setDurationMinutes] = useState("30");
   const [intervalSeconds, setIntervalSeconds] = useState("30");
   const [style, setStyle] = useState("TAKER");
+  const [twapExecutionGuard, setTWAPExecutionGuard] = useState(
+    defaultTWAPExecutionGuard,
+  );
   const [reduceOnly, setReduceOnly] = useState(false);
   const [direction, setDirection] = useState("LONG");
   const [gridLevels, setGridLevels] = useState("3");
@@ -195,6 +204,8 @@ export function BotPanel({
     currentMarkPrice > 0 ? twapAmount / currentMarkPrice : 0;
   const twapValidationError = useMemo(() => {
     if (kind !== "TWAP") return "";
+    const protectionError = twapExecutionGuardValidation(twapExecutionGuard);
+    if (protectionError) return protectionError;
     if (!Number.isFinite(twapAmount) || twapAmount <= 0)
       return "Enter a valid total amount.";
     if (currentMarkPrice <= 0)
@@ -215,6 +226,7 @@ export function BotPanel({
     twapAmount,
     twapSliceCount,
     twapSliceNotional,
+    twapExecutionGuard,
   ]);
   const makerValidationError = useMemo(() => {
     if (kind !== "MARKET_MAKER") return "";
@@ -447,6 +459,7 @@ export function BotPanel({
                 // current mark and every slice remains exchange-validated.
                 max_notional: Math.max(twapAmount * 1.05, twapAmount + 10),
                 reduce_only: reduceOnly,
+                execution_guard: twapExecutionGuardConfig(twapExecutionGuard),
               }
             : {
                 ...base,
@@ -662,6 +675,10 @@ export function BotPanel({
                   />{" "}
                   Reduce only (close position)
                 </label>
+                <TWAPExecutionGuard
+                  settings={twapExecutionGuard}
+                  onChange={setTWAPExecutionGuard}
+                />
               </div>
             ) : (
               <div className="rota-bots__grid">
@@ -1211,6 +1228,25 @@ function BotSettingsSummary({
           {textValue(bot.config, "style") || "TAKER"} ·{" "}
           {Math.ceil(duration / 60)}m
         </span>
+        {Boolean(
+          (bot.config.execution_guard as { enabled?: boolean } | undefined)
+            ?.enabled,
+        ) && (
+          <span>
+            Protection{" "}
+            <b>
+              {(
+                bot.progress.execution_check as
+                  | { waiting?: boolean }
+                  | undefined
+              )?.waiting
+                ? "Waiting for market conditions"
+                : "Enabled"}
+            </b>
+            {numericValue(bot.progress, "skipped_slices") > 0 &&
+              ` · ${numericValue(bot.progress, "skipped_slices")} deferred checks`}
+          </span>
+        )}
       </div>
     );
   }

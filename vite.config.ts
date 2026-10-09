@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
-import { defineConfig, Plugin } from "vite";
+import { defineConfig, loadEnv, Plugin } from "vite";
 import { cjsInterop } from "vite-plugin-cjs-interop";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -38,7 +38,8 @@ function htmlTitlePlugin(): Plugin {
   };
 }
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const localEnv = loadEnv(mode, process.cwd(), "VITE_");
   const basePath = process.env.PUBLIC_PATH || "/";
 
   return {
@@ -49,6 +50,7 @@ export default defineConfig(() => {
         "/copy-api": {
           target:
             process.env.VITE_COPYTRADE_PROXY_TARGET ||
+            localEnv.VITE_COPYTRADE_PROXY_TARGET ||
             "https://rota.algobotapp.com",
           changeOrigin: true,
           rewrite: (requestPath) => requestPath.replace(/^\/copy-api/, ""),

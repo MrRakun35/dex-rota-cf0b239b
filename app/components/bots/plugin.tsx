@@ -80,7 +80,7 @@ function EntryTabs({
             className={mode === value ? "active" : ""}
             onClick={() => setMode(value)}
           >
-            {value === "trade" ? "Trade" : "Bots"}
+            {value === "trade" ? "Trade" : "Algo"}
           </button>
         ))}
       </div>

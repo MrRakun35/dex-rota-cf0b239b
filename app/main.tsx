@@ -16,6 +16,7 @@ const PortfolioLayout = lazy(() => import("./pages/portfolio/Layout"));
 const PortfolioNotifications = lazy(
   () => import("./pages/portfolio/Notifications"),
 );
+const PortfolioGuard = lazy(() => import("./pages/portfolio/Guard"));
 const PortfolioIndex = lazy(() => import("./pages/portfolio/Index"));
 const PortfolioPositions = lazy(() => import("./pages/portfolio/Positions"));
 const PortfolioOrders = lazy(() => import("./pages/portfolio/Orders"));
@@ -91,6 +92,7 @@ const router = createBrowserRouter(
             { path: "history", element: <PortfolioHistory /> },
             { path: "setting", element: <PortfolioSetting /> },
             { path: "notifications", element: <PortfolioNotifications /> },
+            { path: "guard", element: <PortfolioGuard /> },
           ],
         },
         {
