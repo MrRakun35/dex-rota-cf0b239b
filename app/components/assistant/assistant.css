@@ -415,3 +415,31 @@
   z-index: 44;
   background: #0002;
 }
+
+.rota-ai-shortcuts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid #293341;
+  font-size: 12px;
+}
+.rota-ai-shortcuts label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.rota-ai-shortcuts select {
+  border: 1px solid #394555;
+  border-radius: 8px;
+  background: #17202c;
+  color: #dbe5ef;
+  padding: 8px;
+  max-width: 100%;
+}
+.rota-ai-shortcuts a {
+  color: rgb(var(--oui-color-primary-light));
+  white-space: nowrap;
+}

@@ -2,7 +2,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import RotaAIIndex from "@/pages/rota-ai/Index";
 import RotaAssistant from "./RotaAssistant";
+import { openAssistant } from "./shortcuts";
 
 const mocks = vi.hoisted(() => ({
   state: { address: "wallet-1", accountId: "account-1" },
@@ -131,6 +133,71 @@ describe("Native ROTA agent", () => {
       { message: "Analyze BTC" },
       expect.any(AbortSignal),
     );
+  });
+  it("opens a guide example as an editable draft without sending or confirming", async () => {
+    await act(async () =>
+      root.render(
+        <MemoryRouter>
+          <RotaAssistant />
+          <RotaAIIndex />
+        </MemoryRouter>,
+      ),
+    );
+    const example = Array.from(host.querySelectorAll("button")).find((node) =>
+      node.textContent?.includes("Try in chat"),
+    )!;
+    await act(async () => example.click());
+    expect(
+      host.querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Message ROTA AI"]',
+      )?.value,
+    ).toContain("market_query");
+    expect(
+      mocks.request.mock.calls.some(
+        (call) => call[0] === "/chat" || String(call[0]).includes("/confirm"),
+      ),
+    ).toBe(false);
+    const shortcuts = host.querySelector<HTMLSelectElement>(
+      'select[aria-label="Tool shortcuts"]',
+    )!;
+    await act(async () => {
+      shortcuts.value = "guard";
+      shortcuts.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(
+      host.querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Message ROTA AI"]',
+      )?.value,
+    ).toContain("guard_state");
+  });
+  it("offers Claude and explicitly probes only the saved model connection", async () => {
+    authenticated = true;
+    const original = mocks.request.getMockImplementation()!;
+    mocks.request.mockImplementation(async (...args: unknown[]) =>
+      args[0] === "/model/test"
+        ? { ok: true, model: "claude-selected" }
+        : original(...args),
+    );
+    await act(async () => openAssistant({ tab: "settings" }));
+    expect(host.querySelector('option[value="anthropic"]')?.textContent).toBe(
+      "Anthropic Claude",
+    );
+    expect(
+      mocks.request.mock.calls.some((call) => call[0] === "/model/test"),
+    ).toBe(false);
+    await click("Test model connection");
+    expect(mocks.request).toHaveBeenCalledWith(
+      "/model/test",
+      "guest-session",
+      "POST",
+      {},
+      expect.any(AbortSignal),
+    );
+    expect(host.textContent).toContain("Connection verified · claude-selected");
+    const link = Array.from(host.querySelectorAll("a")).find((node) =>
+      node.textContent?.includes("Open ROTA Portfolio"),
+    );
+    expect(link?.getAttribute("href")).toBe("/portfolio/notifications");
   });
   it("never confirms a model-created proposal until the user clicks", async () => {
     mocks.request.mockImplementation(async (path: string) => {

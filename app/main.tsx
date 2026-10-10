@@ -31,6 +31,8 @@ const LeaderboardLayout = lazy(() => import("./pages/leaderboard/Layout"));
 const LeaderboardIndex = lazy(() => import("./pages/leaderboard/Index"));
 const CopyTradeLayout = lazy(() => import("./pages/copy-trade/Layout"));
 const CopyTradeIndex = lazy(() => import("./pages/copy-trade/Index"));
+const RotaAILayout = lazy(() => import("./pages/rota-ai/Layout"));
+const RotaAIIndex = lazy(() => import("./pages/rota-ai/Index"));
 const RewardsLayout = lazy(() => import("./pages/rewards/Layout"));
 const RewardsIndex = lazy(() => import("./pages/rewards/Index"));
 const RewardsAffiliate = lazy(() => import("./pages/rewards/Affiliate"));
@@ -114,6 +116,11 @@ const router = createBrowserRouter(
           path: "copy-trade",
           element: <CopyTradeLayout />,
           children: [{ index: true, element: <CopyTradeIndex /> }],
+        },
+        {
+          path: "rota-ai",
+          element: <RotaAILayout />,
+          children: [{ index: true, element: <RotaAIIndex /> }],
         },
         {
           path: "rewards",

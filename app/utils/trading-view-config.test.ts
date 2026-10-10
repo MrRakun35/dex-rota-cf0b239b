@@ -38,11 +38,10 @@ describe("createTradingViewConfig", () => {
     );
   });
 
-  it("configures studies overrides for RSI", () => {
+  it("shows the chart and drawing toolbars without a default RSI override", () => {
     const config = createTradingViewConfig("theme-config");
-    expect(config.studiesOverrides).toMatchObject({
-      "relative strength index.length": 14,
-    });
-    expect(config.studiesOverrides).not.toHaveProperty("moving average.length");
+    expect(config.enabled_features).toEqual(["header_widget", "left_toolbar"]);
+    expect(config.disabled_features).toContain("hide_left_toolbar_by_default");
+    expect(config.studiesOverrides).toBeUndefined();
   });
 });

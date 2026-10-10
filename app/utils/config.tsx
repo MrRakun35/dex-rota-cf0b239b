@@ -338,7 +338,19 @@ export const useOrderlyConfig = () => {
 
     const defaultEnabledMenus = allMenuItems.filter((menu) => menu.isDefault);
 
-    const enabledMenus = getEnabledMenus(allMenuItems, defaultEnabledMenus);
+    const enabledMenus = [
+      ...getEnabledMenus(allMenuItems, defaultEnabledMenus),
+    ];
+    if (getRuntimeConfig("VITE_ROTA_AI_ENABLED") !== "false") {
+      const rewardsIndex = enabledMenus.findIndex(
+        (menu) => menu.id === "Rewards",
+      );
+      enabledMenus.splice(
+        rewardsIndex < 0 ? enabledMenus.length : rewardsIndex + 1,
+        0,
+        { id: "RotaAI", href: "/rota-ai", name: "Rota AI" },
+      );
+    }
     const customMenus = getCustomMenuItems();
 
     const translatedEnabledMenus = enabledMenus.map((menu) => ({

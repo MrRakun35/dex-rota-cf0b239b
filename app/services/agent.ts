@@ -1,7 +1,13 @@
 import { getCopyTradeAPIURL } from "@/utils/copy-trade-api-url";
 
 export interface AgentSettings {
-  provider: "starter" | "openrouter" | "openai" | "groq" | "gemini";
+  provider:
+    | "starter"
+    | "openrouter"
+    | "openai"
+    | "groq"
+    | "gemini"
+    | "anthropic";
   model: string;
   has_key: boolean;
   api_key?: string;

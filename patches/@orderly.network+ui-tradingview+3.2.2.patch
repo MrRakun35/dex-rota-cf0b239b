@@ -1,0 +1,36 @@
+diff --git a/node_modules/@orderly.network/ui-tradingview/dist/index.js b/node_modules/@orderly.network/ui-tradingview/dist/index.js
+index 2eaa7a9..6a9ef20 100644
+--- a/node_modules/@orderly.network/ui-tradingview/dist/index.js
++++ b/node_modules/@orderly.network/ui-tradingview/dist/index.js
+@@ -4345,11 +4345,11 @@ function getOptions(options, mode, externalEnabledFeatures, externalDisabledFeat
+     "iframe_loading_compatibility_mode"
+   ];
+   const mergedEnabledFeatures = Array.from(
+-    /* @__PURE__ */ new Set([...defaultEnabledFeatures, ...externalEnabledFeatures || []])
++    /* @__PURE__ */ new Set([...defaultEnabledFeatures.filter((feature) => !(externalDisabledFeatures || []).includes(feature)), ...externalEnabledFeatures || []])
+   );
+   const defaultDisabledFeatures = getDisabledFeatures(mode);
+   const mergedDisabledFeatures = Array.from(
+-    /* @__PURE__ */ new Set([...defaultDisabledFeatures, ...externalDisabledFeatures || []])
++    /* @__PURE__ */ new Set([...defaultDisabledFeatures.filter((feature) => !(externalEnabledFeatures || []).includes(feature)), ...externalDisabledFeatures || []])
+   );
+   return {
+     ...options,
+diff --git a/node_modules/@orderly.network/ui-tradingview/dist/index.mjs b/node_modules/@orderly.network/ui-tradingview/dist/index.mjs
+index 50abad0..7d6aa9a 100644
+--- a/node_modules/@orderly.network/ui-tradingview/dist/index.mjs
++++ b/node_modules/@orderly.network/ui-tradingview/dist/index.mjs
+@@ -4339,11 +4339,11 @@ function getOptions(options, mode, externalEnabledFeatures, externalDisabledFeat
+     "iframe_loading_compatibility_mode"
+   ];
+   const mergedEnabledFeatures = Array.from(
+-    /* @__PURE__ */ new Set([...defaultEnabledFeatures, ...externalEnabledFeatures || []])
++    /* @__PURE__ */ new Set([...defaultEnabledFeatures.filter((feature) => !(externalDisabledFeatures || []).includes(feature)), ...externalEnabledFeatures || []])
+   );
+   const defaultDisabledFeatures = getDisabledFeatures(mode);
+   const mergedDisabledFeatures = Array.from(
+-    /* @__PURE__ */ new Set([...defaultDisabledFeatures, ...externalDisabledFeatures || []])
++    /* @__PURE__ */ new Set([...defaultDisabledFeatures.filter((feature) => !(externalEnabledFeatures || []).includes(feature)), ...externalDisabledFeatures || []])
+   );
+   return {
+     ...options,

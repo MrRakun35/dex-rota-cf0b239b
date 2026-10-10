@@ -12,11 +12,10 @@ export const createTradingViewConfig = (
   library_path: withBasePath("/tradingview/charting_library/"),
   customCssUrl: withBasePath("/tradingview/chart.css"),
   colorConfig: getTradingViewColorConfigForSource(source),
+  enabled_features: ["header_widget", "left_toolbar"],
   disabled_features: [
+    "hide_left_toolbar_by_default",
     "create_volume_indicator_by_default",
     "create_volume_indicator_by_default_once",
   ],
-  studiesOverrides: {
-    "relative strength index.length": 14,
-  } as any,
 });

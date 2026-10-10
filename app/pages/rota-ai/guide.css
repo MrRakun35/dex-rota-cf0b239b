@@ -1,0 +1,182 @@
+.rota-ai-guide {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  color: rgb(var(--oui-color-base-foreground));
+}
+.rota-ai-guide section + section {
+  margin-top: 40px;
+}
+.rota-ai-guide-hero {
+  padding: 40px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.12);
+  border-radius: 24px;
+  background: radial-gradient(
+    ellipse at top right,
+    rgb(var(--oui-color-primary) / 0.24) 0%,
+    rgb(var(--oui-color-base-7)) 65%
+  );
+}
+.rota-ai-guide-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(var(--oui-color-primary-light));
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+.rota-ai-guide h1 {
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.12;
+  font-weight: 650;
+  margin: 20px 0;
+}
+.rota-ai-guide h2 {
+  font-size: 22px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.rota-ai-guide h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 12px 0;
+}
+.rota-ai-guide p,
+.rota-ai-guide li {
+  color: rgb(var(--oui-color-tertiary));
+  line-height: 1.75;
+  font-size: 14px;
+}
+.rota-ai-guide-hero p {
+  max-width: 720px;
+  font-size: 16px;
+}
+.rota-ai-guide button,
+.rota-ai-guide a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgb(var(--oui-color-primary-light));
+  font-size: 14px;
+}
+.rota-ai-guide button {
+  border: 1px solid rgb(var(--oui-color-primary) / 0.35);
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: rgb(var(--oui-color-primary) / 0.16);
+}
+.rota-ai-guide button:hover {
+  background: rgb(var(--oui-color-primary) / 0.3);
+}
+.rota-ai-guide button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.rota-ai-guide button:focus-visible,
+.rota-ai-guide a:focus-visible {
+  outline: 2px solid rgb(var(--oui-color-primary-light));
+  outline-offset: 4px;
+}
+.rota-ai-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.rota-ai-guide-start {
+  border-left: 2px solid rgb(var(--oui-color-primary));
+  padding-left: 24px;
+}
+.rota-ai-guide ol {
+  list-style: decimal;
+  padding-left: 20px;
+}
+.rota-ai-guide li {
+  margin: 12px 0;
+}
+.rota-ai-guide strong {
+  color: rgb(var(--oui-color-base-foreground));
+}
+.rota-ai-guide-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.rota-ai-guide-section-heading span {
+  color: rgb(var(--oui-color-tertiary));
+  font-size: 13px;
+}
+.rota-ai-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.rota-ai-guide-card {
+  padding: 24px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.1);
+  border-radius: 16px;
+  background: rgb(var(--oui-color-base-7));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.rota-ai-guide-number {
+  color: rgb(var(--oui-color-primary));
+  font-size: 12px;
+}
+.rota-ai-guide-card small {
+  color: rgb(var(--oui-color-tertiary));
+  font-size: 11px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+.rota-ai-guide-card blockquote {
+  margin: 20px 0;
+  padding: 12px;
+  background: rgb(var(--oui-color-base-6));
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgb(var(--oui-color-base-foreground) / 0.8);
+}
+.rota-ai-guide-card button {
+  margin-top: auto;
+}
+.rota-ai-guide-details {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.rota-ai-guide-details article {
+  padding: 24px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.1);
+  border-radius: 16px;
+}
+.rota-ai-guide-details p + p {
+  margin-top: 12px;
+}
+.rota-ai-guide-details a,
+.rota-ai-guide-details button {
+  margin-top: 16px;
+}
+@media (max-width: 900px) {
+  .rota-ai-guide-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .rota-ai-guide {
+    padding: 24px 16px 64px;
+  }
+  .rota-ai-guide-hero {
+    padding: 24px;
+  }
+  .rota-ai-guide-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -26,6 +26,11 @@ import {
 } from "@/services/agent";
 import { withBasePath } from "@/utils/base-path";
 import { getRuntimeConfig } from "@/utils/runtime-config";
+import {
+  assistantShortcuts,
+  assistantOpenEvent,
+  type AssistantOpenDetail,
+} from "./shortcuts";
 import "./assistant.css";
 
 const defaults: AgentSettings = {
@@ -119,6 +124,16 @@ function AssistantSession() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [open]);
+  useEffect(() => {
+    function openAssistant(event: Event) {
+      const detail = (event as CustomEvent<AssistantOpenDetail>).detail;
+      setOpen(true);
+      setTab(detail?.tab || "chat");
+      if (detail?.prompt) setInput(detail.prompt);
+    }
+    window.addEventListener(assistantOpenEvent, openAssistant);
+    return () => window.removeEventListener(assistantOpenEvent, openAssistant);
+  }, []);
   const refresh = useCallback(async (session: string) => {
     const [next, history] = await Promise.all([
       agentRequest<AgentAccess>(
@@ -584,6 +599,32 @@ function AssistantSession() {
                     Settings. Public tools remain available.
                   </div>
                 )}
+              <div className="rota-ai-shortcuts">
+                <label>
+                  Tool shortcuts
+                  <select
+                    aria-label="Tool shortcuts"
+                    value=""
+                    disabled={busy}
+                    onChange={(event) => {
+                      const shortcut = assistantShortcuts.find(
+                        (item) => item.id === event.target.value,
+                      );
+                      if (shortcut) setInput(shortcut.prompt);
+                    }}
+                  >
+                    <option value="">Choose a tool or example…</option>
+                    {assistantShortcuts.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Link to={withBasePath("/rota-ai")} onClick={close}>
+                  Usage guide
+                </Link>
+              </div>
               <form
                 className="rota-ai-compose"
                 onSubmit={(event) => {
@@ -729,6 +770,7 @@ function AssistantSession() {
                     <option value="openai">OpenAI</option>
                     <option value="groq">Groq</option>
                     <option value="gemini">Google Gemini</option>
+                    <option value="anthropic">Anthropic Claude</option>
                   </select>
                 </label>
                 {settings.provider !== "starter" && (
@@ -745,7 +787,11 @@ function AssistantSession() {
                             model: event.target.value,
                           })
                         }
-                        placeholder="Tool-capable Chat Completions model ID"
+                        placeholder={
+                          settings.provider === "anthropic"
+                            ? "Claude model ID from your Anthropic console"
+                            : "Tool-capable model ID from your provider"
+                        }
                       />
                     </label>
                     <label>
@@ -823,6 +869,36 @@ function AssistantSession() {
                   Save AI settings
                 </button>
               </form>
+              <button
+                type="button"
+                className="rota-ai-primary"
+                disabled={busy || !access?.authenticated}
+                onClick={() =>
+                  void perform(async () => {
+                    const result = await agentRequest<{
+                      ok: boolean;
+                      model: string;
+                    }>(
+                      "/model/test",
+                      token,
+                      "POST",
+                      {},
+                      controller.current.signal,
+                    );
+                    if (alive.current)
+                      setNotice(
+                        `Connection verified · ${result.model || access?.settings.model}.`,
+                      );
+                  })
+                }
+              >
+                Test model connection
+              </button>
+              <p className="rota-ai-hint">
+                Tests your saved provider and model with a small API request.
+                Save changes first. Provider usage charges may apply. No account
+                data or trading actions are sent.
+              </p>
               <details>
                 <summary>
                   {caps
@@ -876,7 +952,10 @@ function AssistantSession() {
                   </button>
                 ))}
               </div>
-              <Link to={withBasePath("/portfolio")} onClick={close}>
+              <Link
+                to={withBasePath("/portfolio/notifications")}
+                onClick={close}
+              >
                 Open ROTA Portfolio &amp; Telegram
               </Link>
             </div>
