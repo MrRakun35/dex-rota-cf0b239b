@@ -12,8 +12,9 @@ export const createTradingViewConfig = (
   library_path: withBasePath("/tradingview/charting_library/"),
   customCssUrl: withBasePath("/tradingview/chart.css"),
   colorConfig: getTradingViewColorConfigForSource(source),
-  enabled_features: ["header_widget", "left_toolbar"],
+  enabled_features: ["left_toolbar"],
   disabled_features: [
+    "header_widget",
     "hide_left_toolbar_by_default",
     "create_volume_indicator_by_default",
     "create_volume_indicator_by_default_once",

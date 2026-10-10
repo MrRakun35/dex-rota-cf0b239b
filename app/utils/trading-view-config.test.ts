@@ -38,9 +38,10 @@ describe("createTradingViewConfig", () => {
     );
   });
 
-  it("shows the chart and drawing toolbars without a default RSI override", () => {
+  it("hides the duplicate chart header while showing drawing tools", () => {
     const config = createTradingViewConfig("theme-config");
-    expect(config.enabled_features).toEqual(["header_widget", "left_toolbar"]);
+    expect(config.enabled_features).toEqual(["left_toolbar"]);
+    expect(config.disabled_features).toContain("header_widget");
     expect(config.disabled_features).toContain("hide_left_toolbar_by_default");
     expect(config.studiesOverrides).toBeUndefined();
   });
