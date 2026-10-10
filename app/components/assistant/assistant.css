@@ -15,7 +15,8 @@
   font: 600 13px var(--oui-font-family);
   cursor: pointer;
 }
-.rota-ai-launcher svg {
+.rota-ai-launcher svg,
+.rota-ai-header > svg {
   color: rgb(var(--oui-color-primary-light));
 }
 .rota-ai-panel {
@@ -23,12 +24,12 @@
   top: 72px;
   right: 16px;
   bottom: 48px;
-  width: 460px;
+  width: 480px;
   max-width: calc(100vw - 32px);
   z-index: 45;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgb(var(--oui-color-line) / 0.12);
+  border: 1px solid rgb(var(--oui-color-line) / 0.15);
   border-radius: 16px;
   overflow: hidden;
   background: rgb(var(--oui-color-base-9));
@@ -36,21 +37,18 @@
   box-shadow: 0 16px 64px #0009;
   font: 13px var(--oui-font-family);
 }
-.rota-ai-panel[hidden] {
-  display: none;
-}
 .rota-ai-header {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 17px;
-  border-bottom: 1px solid rgb(var(--oui-color-line) / 0.08);
+  border-bottom: 1px solid rgb(var(--oui-color-line) / 0.1);
 }
 .rota-ai-header > div {
   flex: 1;
 }
 .rota-ai-header strong {
-  font-size: 17px;
+  font-size: 18px;
   letter-spacing: 0.04em;
 }
 .rota-ai-header strong span {
@@ -65,160 +63,355 @@
 .rota-ai-panel button {
   font: inherit;
   cursor: pointer;
-}
-.rota-ai-header button {
-  padding: 7px;
-  background: transparent;
-  border: 0;
-  color: rgb(var(--oui-color-tertiary));
-  border-radius: 6px;
-}
-.rota-ai-header button:hover {
-  background: rgb(var(--oui-color-fill));
-  color: rgb(var(--oui-color-secondary));
-}
-.rota-ai-context,
-.rota-ai-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 11px 17px;
-  font-size: 11px;
-  color: rgb(var(--oui-color-tertiary));
-}
-.rota-ai-context span,
-.rota-ai-context a,
-.rota-ai-footer span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.rota-ai-context a {
-  color: rgb(var(--oui-color-primary-light));
-  text-decoration: none;
-}
-.rota-ai-context i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgb(var(--oui-color-quaternary));
-}
-.rota-ai-context i.is-connected {
-  background: rgb(var(--oui-color-success));
-}
-.rota-ai-chat {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-}
-.rota-ai-chat iframe {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: rgb(var(--oui-color-base-9));
-}
-.rota-ai-loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 24px;
-  text-align: center;
-  background: rgb(var(--oui-color-base-9));
-}
-.rota-ai-loading svg {
-  color: rgb(var(--oui-color-primary-light));
-}
-.rota-ai-loading span {
-  color: rgb(var(--oui-color-tertiary));
-  line-height: 1.7;
-}
-.rota-ai-footer {
-  border-top: 1px solid rgb(var(--oui-color-line) / 0.08);
-}
-.rota-ai-footer button,
-.rota-ai-loading button,
-.rota-ai-consent button {
-  border: 1px solid rgb(var(--oui-color-line) / 0.12);
-  border-radius: 7px;
-  padding: 8px 10px;
-  color: rgb(var(--oui-color-secondary));
-  background: rgb(var(--oui-color-fill));
+  padding: 8px 11px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.16);
+  border-radius: 8px;
+  color: inherit;
+  background: rgb(var(--oui-color-fill-active) / 0.6);
 }
 .rota-ai-panel button:disabled {
-  opacity: 0.45;
-  cursor: default;
+  opacity: 0.4;
+  cursor: not-allowed;
 }
-.rota-ai-panel button:focus-visible,
-.rota-ai-launcher:focus-visible,
-.rota-ai-panel a:focus-visible {
+.rota-ai-panel button:hover:not(:disabled) {
+  border-color: rgb(var(--oui-color-primary) / 0.6);
+}
+.rota-ai-panel :focus-visible {
   outline: 2px solid rgb(var(--oui-color-primary-light));
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
-.rota-ai-consent {
-  padding: 15px 17px;
-  background: rgb(var(--oui-color-primary) / 0.1);
-  border-block: 1px solid rgb(var(--oui-color-primary) / 0.2);
+.rota-ai-header button {
+  border: 0;
+  background: none;
+  padding: 7px;
 }
-.rota-ai-consent strong {
+.rota-ai-tabs {
+  display: flex;
+  padding: 9px 14px;
+  gap: 6px;
+  border-bottom: 1px solid rgb(var(--oui-color-line) / 0.08);
+}
+.rota-ai-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1;
+  border: 0;
+  background: none;
+  color: rgb(var(--oui-color-tertiary));
+}
+.rota-ai-tabs button[aria-pressed="true"] {
+  color: rgb(var(--oui-color-primary-light));
+  background: rgb(var(--oui-color-primary) / 0.13);
+}
+.rota-ai-account {
   display: flex;
   align-items: center;
   gap: 7px;
-}
-.rota-ai-consent p {
-  line-height: 1.6;
-  margin: 10px 0;
-}
-.rota-ai-consent small {
-  color: rgb(var(--oui-color-tertiary));
-  line-height: 1.6;
-  display: block;
-}
-.rota-ai-consent > div {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-}
-.rota-ai-consent button.is-primary {
-  background: rgb(var(--oui-color-primary));
-  border-color: transparent;
-  color: rgb(var(--oui-color-primary-contrast));
-}
-.rota-ai-error,
-.rota-ai-status {
-  margin: 0;
   padding: 10px 17px;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 10px;
+  color: rgb(var(--oui-color-tertiary));
+  border-bottom: 1px solid rgb(var(--oui-color-line) / 0.08);
 }
-.rota-ai-error {
-  background: rgb(var(--oui-color-danger) / 0.1);
-  color: rgb(var(--oui-color-danger-light));
+.rota-ai-account > span:first-of-type {
+  flex: 1;
 }
-.rota-ai-status {
+.rota-ai-badge {
+  padding: 3px 5px;
+  background: rgb(var(--oui-color-primary) / 0.13);
+  color: rgb(var(--oui-color-primary-light));
+  border-radius: 4px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.rota-ai-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+  overscroll-behavior: contain;
+}
+.rota-ai-welcome {
+  text-align: center;
+  padding: 26px 0 10px;
+}
+.rota-ai-orb {
+  display: inline-flex;
+  padding: 18px;
+  border-radius: 24px;
+  background: radial-gradient(
+    circle,
+    rgb(var(--oui-color-primary) / 0.3),
+    transparent
+  );
   color: rgb(var(--oui-color-primary-light));
 }
+.rota-ai-panel h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+.rota-ai-welcome > p,
+.rota-ai-settings > p {
+  color: rgb(var(--oui-color-tertiary));
+  line-height: 1.65;
+  margin-bottom: 17px;
+}
+.rota-ai-prompts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 20px 0;
+}
+.rota-ai-prompts button {
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 12px;
+  min-height: 60px;
+}
+.rota-ai-message {
+  padding: 13px 15px;
+  margin: 0 0 14px;
+  background: rgb(var(--oui-color-fill-active) / 0.4);
+  border: 1px solid rgb(var(--oui-color-line) / 0.08);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.rota-ai-message small {
+  color: rgb(var(--oui-color-primary-light));
+  font-size: 10px;
+  font-weight: 600;
+}
+.rota-ai-message p {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  margin-top: 6px;
+}
+.rota-ai-user {
+  margin-left: 35px;
+  background: rgb(var(--oui-color-primary) / 0.12);
+}
+.rota-ai-assistant {
+  margin-right: 14px;
+}
+.rota-ai-result {
+  margin: 10px 0;
+  border: 1px solid rgb(var(--oui-color-line) / 0.12);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.rota-ai-result summary {
+  cursor: pointer;
+  padding: 11px;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+.rota-ai-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 11px/1.6 monospace;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  background: #0003;
+}
+.rota-ai-proposal {
+  margin: 12px 0;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1px solid rgb(var(--oui-color-primary) / 0.5);
+  background: rgb(var(--oui-color-primary) / 0.08);
+}
+.rota-ai-proposal strong {
+  font-size: 12px;
+}
+.rota-ai-proposal small {
+  display: block;
+  font-size: 10px;
+  margin: 8px 0;
+  color: rgb(var(--oui-color-tertiary));
+}
+.rota-ai-proposal > div {
+  display: flex;
+  gap: 8px;
+}
+.rota-ai-panel .rota-ai-primary {
+  background: rgb(var(--oui-color-primary));
+  border-color: rgb(var(--oui-color-primary));
+  color: white;
+  font-weight: 600;
+}
+.rota-ai-compose {
+  display: flex;
+  gap: 8px;
+  padding: 12px 15px 8px;
+  border-top: 1px solid rgb(var(--oui-color-line) / 0.1);
+}
+.rota-ai-compose textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  max-height: 120px;
+  min-height: 48px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.12);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgb(var(--oui-color-fill-active) / 0.5);
+  color: inherit;
+  font: inherit;
+}
+.rota-ai-compose button {
+  align-self: flex-end;
+  height: 44px;
+}
+.rota-ai-footer {
+  font-size: 9px;
+  color: rgb(var(--oui-color-tertiary));
+  padding: 0 16px 12px;
+  overflow-wrap: anywhere;
+}
+.rota-ai-error,
+.rota-ai-notice,
+.rota-ai-starter {
+  margin: 8px 14px 0;
+  padding: 10px;
+  border-radius: 8px;
+  line-height: 1.5;
+  font-size: 11px;
+}
+.rota-ai-error {
+  background: #f4433618;
+  color: #fba39a;
+}
+.rota-ai-notice {
+  background: rgb(var(--oui-color-primary) / 0.1);
+  color: rgb(var(--oui-color-primary-light));
+}
+.rota-ai-starter {
+  color: rgb(var(--oui-color-tertiary));
+}
+.rota-ai-working {
+  color: rgb(var(--oui-color-primary-light));
+  font-size: 11px;
+  padding: 12px;
+}
+.rota-ai-settings form,
+.rota-ai-connect,
+.rota-ai-direct {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 16px 0;
+  padding: 15px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.12);
+  border-radius: 12px;
+}
+.rota-ai-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: rgb(var(--oui-color-tertiary));
+  font-size: 11px;
+}
+.rota-ai-settings input,
+.rota-ai-settings select,
+.rota-ai-settings textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.17);
+  border-radius: 7px;
+  background: rgb(var(--oui-color-base-9));
+  color: rgb(var(--oui-color-secondary));
+  font: inherit;
+}
+.rota-ai-settings textarea {
+  min-height: 75px;
+  resize: vertical;
+}
+.rota-ai-settings .rota-ai-check {
+  flex-direction: row;
+  align-items: flex-start;
+  line-height: 1.6;
+}
+.rota-ai-check input {
+  width: auto;
+  margin-top: 3px;
+  accent-color: rgb(var(--oui-color-primary));
+}
+.rota-ai-settings small,
+.rota-ai-hint,
+.rota-ai-connect p {
+  color: rgb(var(--oui-color-tertiary));
+  font-size: 10px;
+  line-height: 1.6;
+}
+.rota-ai-settings ul {
+  padding: 12px;
+}
+.rota-ai-settings li {
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+.rota-ai-settings li p {
+  color: rgb(var(--oui-color-tertiary));
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.rota-ai-settings a {
+  color: rgb(var(--oui-color-primary-light));
+  font-size: 11px;
+}
+.rota-ai-task {
+  padding: 14px;
+  margin-bottom: 10px;
+  border: 1px solid rgb(var(--oui-color-line) / 0.12);
+  border-radius: 10px;
+}
+.rota-ai-task strong,
+.rota-ai-task small {
+  display: block;
+  margin-bottom: 8px;
+}
+.rota-ai-task button {
+  margin: 0 6px 0 0;
+}
+.rota-ai-task p {
+  font-size: 11px;
+  color: #fba39a;
+  margin-bottom: 10px;
+}
 @media (max-width: 640px) {
-  .rota-ai-launcher {
-    right: 14px;
-    bottom: calc(76px + env(safe-area-inset-bottom));
-    padding: 11px 13px;
-  }
   .rota-ai-panel {
-    top: 8px;
-    right: 8px;
-    bottom: calc(68px + env(safe-area-inset-bottom));
-    width: calc(100vw - 16px);
-    max-width: none;
-    border-radius: 12px;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-  .rota-ai-consent {
-    max-height: 45dvh;
-    overflow: auto;
+  .rota-ai-launcher {
+    right: 12px;
+    bottom: 65px;
+    padding: 10px 12px;
   }
+  .rota-ai-scroll {
+    padding: 15px;
+  }
+  .rota-ai-welcome {
+    padding-top: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rota-ai-panel * {
+    scroll-behavior: auto;
+  }
+}
+.rota-ai-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: #0002;
 }

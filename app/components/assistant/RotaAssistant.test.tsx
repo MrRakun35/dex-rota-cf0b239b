@@ -3,33 +3,68 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import RotaAssistant from "./RotaAssistant";
-import { AUTH } from "./protocol";
 
 const mocks = vi.hoisted(() => ({
   state: { address: "wallet-1", accountId: "account-1" },
-  getKey: vi.fn(),
-  seal: vi.fn(),
   network: "mainnet",
+  request: vi.fn(),
 }));
 vi.mock("@orderly.network/hooks", () => ({
-  useAccount: () => ({ state: mocks.state }),
-  useKeyStore: () => ({ getOrderlyKey: mocks.getKey }),
-  useConfig: (name: string) =>
-    name === "brokerId" ? "rota_dex" : mocks.network,
+  useAccount: () => ({ state: mocks.state, account: {} }),
+  useConfig: () => mocks.network,
 }));
-vi.mock("./credentials", () => ({ sealTradingKey: mocks.seal }));
+vi.mock("@/services/agent", () => ({ agentRequest: mocks.request }));
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
 let host: HTMLDivElement;
-let post: ReturnType<typeof vi.spyOn>;
+const settings = {
+  provider: "starter",
+  model: "openrouter/free",
+  has_key: false,
+  share_account_data: false,
+  max_order_notional: 100,
+  notes: "",
+};
+let authenticated = false;
 beforeEach(async () => {
+  authenticated = false;
   window.__RUNTIME_CONFIG__ = {};
+  sessionStorage.clear();
+  localStorage.clear();
   mocks.state = { address: "wallet-1", accountId: "account-1" };
   mocks.network = "mainnet";
-  mocks.getKey.mockReturnValue({ secretKey: "secret" });
-  mocks.seal.mockResolvedValue("encrypted");
+  mocks.request.mockReset();
+  mocks.request.mockImplementation(async (path: string) => {
+    if (path === "/capabilities")
+      return {
+        starter_ready: true,
+        starter_model: "openrouter/free",
+        daily_messages: 20,
+        dry_run: true,
+        tools: [],
+      };
+    if (path === "/sessions")
+      return { authorization_token: "guest-session", scope: "guest" };
+    if (path === "/settings")
+      return {
+        settings,
+        authenticated,
+        read_authorized: authenticated,
+        trading_authorized: authenticated,
+      };
+    if (["/history", "/tasks", "/reports", "/audit"].includes(path)) return [];
+    if (path === "/chat")
+      return {
+        message: { role: "assistant", content: "Native ROTA response" },
+        model: "free-model",
+        remaining: 19,
+        traces: [],
+        proposals: [],
+      };
+    return {};
+  });
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -39,7 +74,6 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   vi.restoreAllMocks();
-  vi.useRealTimers();
   delete window.__RUNTIME_CONFIG__;
 });
 async function render() {
@@ -52,152 +86,209 @@ async function render() {
   );
 }
 function button(label: string) {
-  const found = Array.from(host.querySelectorAll("button")).find(
+  const result = Array.from(host.querySelectorAll("button")).find(
     (node) =>
       node.getAttribute("aria-label") === label || node.textContent === label,
   );
-  expect(found).toBeDefined();
-  return found!;
+  expect(result).toBeDefined();
+  return result!;
 }
 async function click(label: string) {
   await act(async () => button(label).click());
 }
-async function open() {
-  await click("Open ROTA AI");
-  const frame = host.querySelector("iframe")!;
-  act(() => frame.dispatchEvent(new Event("load")));
-  post = vi.spyOn(frame.contentWindow!, "postMessage");
-  return frame;
+async function type(selector: string, value: string) {
+  const input = host.querySelector(selector) as
+    | HTMLInputElement
+    | HTMLTextAreaElement;
+  const prototype =
+    input.tagName === "TEXTAREA"
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(prototype, "value")!.set!.call(
+      input,
+      value,
+    );
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 }
-async function message(
-  data: unknown,
-  options: { origin?: string; source?: Window } = {},
-) {
-  await act(async () =>
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        data,
-        origin: options.origin || "https://iamstarchild.com",
-        source: options.source || host.querySelector("iframe")!.contentWindow,
-      }),
-    ),
-  );
+async function send() {
+  await type('textarea[aria-label="Message ROTA AI"]', "Analyze BTC");
+  await click("Send message");
 }
-const pubkey = {
-  type: AUTH.PUBKEY,
-  pubKey: "-----BEGIN PUBLIC KEY-----\nfake\n-----END PUBLIC KEY-----",
-  nonce: "nonce-1",
-};
-describe("ROTA AI account authorization", () => {
-  it("loads lazily and retains the chat across close/reopen", async () => {
-    expect(host.querySelector("iframe")).toBeNull();
-    const frame = await open();
-    expect(frame.src).toContain("hideLogo=1");
-    await click("Close ROTA AI");
-    expect(host.querySelector("section")!.hidden).toBe(true);
-    expect(document.activeElement).toBe(button("Open ROTA AI"));
+
+describe("Native ROTA agent", () => {
+  it("starts on the free model without an iframe or remote key exchange", async () => {
     await click("Open ROTA AI");
-    expect(host.querySelector("iframe")).toBe(frame);
-  });
-  it("requires consent and sends only sealed credentials for the ROTA account", async () => {
-    await open();
-    await message(pubkey);
-    expect(mocks.seal).not.toHaveBeenCalled();
-    await message({ type: AUTH.TRIGGER, actionId: "chat-action" });
-    expect(host.textContent).toContain("existing permissions");
-    expect(post).not.toHaveBeenCalled();
-    await click("Allow AI trading");
-    expect(post).toHaveBeenCalledWith(
-      { type: AUTH.REQUEST, scope: "trade-only", actionId: "chat-action" },
-      "https://iamstarchild.com",
-    );
-    await message({ ...pubkey, actionId: "wrong-action" });
-    expect(mocks.seal).not.toHaveBeenCalled();
-    await message(pubkey);
-    expect(mocks.getKey).toHaveBeenCalledWith("wallet-1");
-    expect(post).toHaveBeenCalledWith(
-      {
-        type: AUTH.RESULT,
-        nonce: "nonce-1",
-        ciphertext: "encrypted",
-        accountId: "account-1",
-        brokerId: "rota_dex",
-        networkId: "mainnet",
-        actionId: "chat-action",
-      },
-      "https://iamstarchild.com",
-    );
-    expect(JSON.stringify(post.mock.calls)).not.toContain("secret");
-    await message(pubkey);
-    expect(mocks.seal).toHaveBeenCalledTimes(1);
-  });
-  it("ignores messages from another origin or another window", async () => {
-    await open();
-    await message({ type: AUTH.TRIGGER }, { origin: "https://other.example" });
-    await message({ type: AUTH.TRIGGER }, { source: window });
-    await message({ type: "starchild_close_panel" }, { source: window });
-    expect(host.querySelector("section")!.hidden).toBe(false);
-    expect(host.querySelector(".rota-ai-consent")).toBeNull();
-    expect(mocks.getKey).not.toHaveBeenCalled();
-  });
-  it("cancels without reading the key", async () => {
-    await open();
-    await click("Connect AI trading");
-    await click("Cancel");
-    await message(pubkey);
-    expect(mocks.getKey).not.toHaveBeenCalled();
-    expect(post).toHaveBeenCalledWith(
-      expect.objectContaining({ type: AUTH.ERROR }),
-      "https://iamstarchild.com",
+    expect(host.querySelector("iframe")).toBeNull();
+    expect(host.textContent).toContain("20 free messages / day");
+    await send();
+    expect(host.textContent).toContain("Native ROTA response");
+    expect(mocks.request).toHaveBeenCalledWith(
+      "/chat",
+      "guest-session",
+      "POST",
+      { message: "Analyze BTC" },
+      expect.any(AbortSignal),
     );
   });
-  it("drops an in-flight encrypted result when the panel closes", async () => {
-    let resolve!: (value: string) => void;
-    mocks.seal.mockReturnValue(
-      new Promise<string>((done) => {
-        resolve = done;
-      }),
-    );
-    await open();
-    await click("Connect AI trading");
-    await click("Allow AI trading");
-    await message(pubkey);
-    await click("Close ROTA AI");
-    await act(async () => resolve("late-ciphertext"));
-    expect(post).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: AUTH.RESULT }),
-      expect.any(String),
+  it("never confirms a model-created proposal until the user clicks", async () => {
+    mocks.request.mockImplementation(async (path: string) => {
+      if (path === "/capabilities")
+        return {
+          starter_ready: true,
+          dry_run: true,
+          daily_messages: 20,
+          tools: [],
+        };
+      if (path === "/sessions") return { authorization_token: "session" };
+      if (path === "/settings")
+        return {
+          settings,
+          authenticated: true,
+          read_authorized: true,
+          trading_authorized: true,
+        };
+      if (path === "/chat")
+        return {
+          message: { role: "assistant", content: "Order proposed" },
+          model: "free",
+          remaining: 19,
+          traces: [],
+          proposals: [
+            {
+              id: "p1",
+              kind: "plan_order",
+              args: { symbol: "PERP_BTC_USDC", order_quantity: 0.001 },
+              dry_run: true,
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            },
+          ],
+        };
+      return [];
+    });
+    await click("Open ROTA AI");
+    await send();
+    expect(
+      mocks.request.mock.calls.some((call) =>
+        String(call[0]).includes("/confirm"),
+      ),
+    ).toBe(false);
+    await click("Confirm simulation");
+    expect(mocks.request).toHaveBeenCalledWith(
+      "/proposals/p1/confirm",
+      "session",
+      "POST",
+      { confirmed: true },
+      expect.any(AbortSignal),
     );
   });
-  it.each(["wallet", "account", "network"])(
-    "discards the embedded session when the %s changes",
-    async (field) => {
-      const frame = await open();
-      if (field === "wallet") mocks.state.address = "wallet-2";
-      if (field === "account") mocks.state.accountId = "account-2";
-      if (field === "network") mocks.network = "testnet";
-      await render();
-      expect(host.querySelector("iframe")).toBeNull();
-      expect(frame.isConnected).toBe(false);
-    },
-  );
-  it("times out and ignores a late public key", async () => {
-    await open();
-    vi.useFakeTimers();
-    await click("Connect AI trading");
-    await click("Allow AI trading");
-    act(() => vi.advanceTimersByTime(30001));
-    await message(pubkey);
-    expect(host.textContent).toContain("timed out");
-    expect(mocks.getKey).not.toHaveBeenCalled();
+  it("rejects expired action cards in the UI", async () => {
+    const original = mocks.request.getMockImplementation()!;
+    mocks.request.mockImplementation(async (...args: unknown[]) =>
+      args[0] === "/chat"
+        ? {
+            message: { role: "assistant", content: "Expired" },
+            traces: [],
+            proposals: [
+              {
+                id: "p",
+                kind: "plan_order",
+                args: {},
+                dry_run: true,
+                expires_at: new Date(0).toISOString(),
+              },
+            ],
+            remaining: 0,
+          }
+        : original(...args),
+    );
+    await click("Open ROTA AI");
+    await send();
+    expect(button("Expired").disabled).toBe(true);
   });
-  it("keeps research available when authorization is disabled", async () => {
-    window.__RUNTIME_CONFIG__ = { VITE_ROTA_AI_TRADING_AUTHORIZATION: "false" };
+  it("clears account conversation on wallet or network change", async () => {
+    await click("Open ROTA AI");
+    await send();
+    expect(host.textContent).toContain("Native ROTA response");
+    mocks.state = { address: "wallet-2", accountId: "account-2" };
     await render();
-    await open();
-    await message({ type: AUTH.TRIGGER });
-    expect(button("Connect AI trading").disabled).toBe(true);
-    expect(mocks.getKey).not.toHaveBeenCalled();
-    expect(host.querySelector("iframe")).not.toBeNull();
+    await click("Open ROTA AI");
+    expect(host.textContent).not.toContain("Native ROTA response");
+    expect(
+      sessionStorage.getItem("rota-native-ai:wallet-2:account-2:mainnet"),
+    ).toBe("guest-session");
+  });
+  it("does not save provider keys in browser storage and clears them when closed", async () => {
+    authenticated = true;
+    await click("Open ROTA AI");
+    await click("Settings");
+    const select = host.querySelector("select")!;
+    await act(async () => {
+      select.value = "openai";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await type('input[type="password"]', "sk-test-do-not-store");
+    expect(JSON.stringify(sessionStorage)).not.toContain("sk-test");
+    expect(localStorage.length).toBe(0);
+    await click("Close ROTA AI");
+    await click("Open ROTA AI");
+    const secret = host.querySelector(
+      'input[type="password"]',
+    ) as HTMLInputElement | null;
+    expect(secret?.value || "").toBe("");
+  });
+  it("creates persistent read-only tasks from explicit form submission", async () => {
+    authenticated = true;
+    await click("Open ROTA AI");
+    await click("Tasks");
+    await click("Create background task");
+    expect(mocks.request).toHaveBeenCalledWith(
+      "/tasks",
+      "guest-session",
+      "POST",
+      expect.objectContaining({
+        kind: "daily_report",
+        timezone: "Europe/Istanbul",
+        notify: false,
+      }),
+      expect.any(AbortSignal),
+    );
+  });
+  it("renders provider and tool text as inert text", async () => {
+    const original = mocks.request.getMockImplementation()!;
+    mocks.request.mockImplementation(async (...args: unknown[]) =>
+      args[0] === "/chat"
+        ? {
+            message: {
+              role: "assistant",
+              content: '<img src=x onerror="alert(1)">',
+            },
+            traces: [{ name: "tool", data: "<script>bad</script>" }],
+            proposals: [],
+            remaining: 1,
+          }
+        : original(...args),
+    );
+    await click("Open ROTA AI");
+    await send();
+    expect(host.querySelector("img")).toBeNull();
+    expect(host.querySelector("script")).toBeNull();
+  });
+  it("does not invent a reply when the model is unavailable", async () => {
+    const original = mocks.request.getMockImplementation()!;
+    mocks.request.mockImplementation(async (...args: unknown[]) => {
+      if (args[0] === "/chat") throw new Error("Free capacity reached");
+      return original(...args);
+    });
+    await click("Open ROTA AI");
+    await send();
+    expect(host.textContent).toContain("Free capacity reached");
+    expect(host.textContent).not.toContain("Native ROTA response");
+  });
+  it("honors the assistant disable switch", async () => {
+    window.__RUNTIME_CONFIG__ = { VITE_ROTA_AI_ENABLED: "false" };
+    await render();
+    expect(host.querySelector("button")).toBeNull();
   });
 });

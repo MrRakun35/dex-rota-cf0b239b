@@ -1,54 +1,13 @@
-# ROTA AI
+# Native ROTA AI
 
-Native ROTA component mounted inside `OrderlyProvider`. Uses ROTA theme tokens,
-branding, account state, broker and network directly. No external plugin package,
-extra React root or global credential registry. The chat mounts on first open and
-survives navigation and close/reopen. Wallet, subaccount and network changes
-discard the embedded session.
+`RotaAssistant.tsx` is ROTA's local chat, model settings, tools, action-confirmation and Tasks UI. It uses the existing Orderly provider account and `/v1/agent` on the configured ROTA backend. There is no iframe or dependency on Starchild's service.
 
-## Service and configuration
+Users start with the backend-configured free tier and may connect their account and save their own OpenRouter/OpenAI/Groq/Gemini provider/model. API keys are sent only through the encrypted backend settings flow and cleared from component memory on close/save; they are never persisted in the browser. Session tokens are isolated by wallet/account/network and expire in 24 hours. Account change unmounts and aborts pending work.
 
-The upstream repository supplies an iframe client, not the AI backend. Research,
-chat, login and agent execution still run at `https://iamstarchild.com`. Its embed
-protocol requires `source=orderly-plugin` and `pluginVersion=1.4.0`; `hideLogo=1`
-requests suppression of the service header brand. The live unauthenticated login
-screen still displays the service branding. A custom service logo URL is omitted
-because the service could not render the localhost logo in browser verification.
-Cross-origin chat content cannot be restyled
-by ROTA. Full ownership of that content requires a compatible ROTA AI service.
+Account reads require a separate read-only Orderly authorization. Trading uses another explicit read/trading authorization. Model tool calls create pending proposals; an explicit click confirms one. Private results are local cards unless the user opts to share them with their selected model. Persistent reports and alerts require no model tokens.
 
-Runtime settings in `public/config.js` (build-time fallback in `.env`):
+`VITE_ROTA_AI_ENABLED=false` hides the assistant. `VITE_ROTA_AI_TRADING_AUTHORIZATION=false` disables the UI's trading authorization button. Backend policies remain authoritative. The previous `VITE_ROTA_AI_URL` is removed.
 
-| Setting                              | Default                    | Purpose                                       |
-| ------------------------------------ | -------------------------- | --------------------------------------------- |
-| `VITE_ROTA_AI_ENABLED`               | `true`                     | Set `false` to remove the assistant           |
-| `VITE_ROTA_AI_URL`                   | `https://iamstarchild.com` | HTTPS service with the same embed protocol    |
-| `VITE_ROTA_AI_TRADING_AUTHORIZATION` | `true`                     | Set `false` for research without key transfer |
+Deploy the companion backend at the same time. See `backend/docs/rota-ai.md` for operator starter configuration, optional ROTA-owned Ollama model, data retention, execution controls and current capability boundaries. A missing starter runtime displays unavailable; the UI does not simulate a model response.
 
-## Authorization
-
-The chat trigger and ROTA connect button require explicit consent in the ROTA
-panel. The service receives the existing SDK trading key, sealed using RSA-OAEP
-SHA-256, and can decrypt and use it. The protocol's `trade-only` label does not
-restrict an existing key's permissions; the UI describes that accurately. No new
-wallet key or Orderly permission is created. Closing/reloading does not revoke a
-key already received by the service. Revoke it through API key management.
-
-Messages require the configured origin and exact iframe window. Public keys are
-processed only after consent during a pending request. Reused nonces, duplicate,
-unsolicited, mismatched and late responses are ignored. Timeout, close, reload
-and unmount invalidate pending encryption. `sent` means the response was posted,
-not that the backend confirmed authorization. The upstream protocol has no
-confirmation message; users check the chat for that confirmation.
-
-## Provenance and checks
-
-Adapted from [starchild-orderly-plugin](https://github.com/Starchild-ai-agent/starchild-orderly-plugin),
-commit `1d3df00ec539e81be0922241229c3cd45830b924`, version 1.4.0.
-The upstream MIT notice is preserved in `LICENSE.starchild`.
-The deployed public notice is `public/licenses/starchild-orderly-plugin.txt`.
-
-`npm test -- app/components/assistant` verifies consent, origin/window validation,
-account changes, cancellation, timeout, response correlation and real RSA sealing.
-Live service login and trading authorization require a browser wallet and an
-account on the remote service. Automated tests do not execute real trades.
+Historical Starchild MIT notices remain under this directory/public licenses for prior integration provenance. Runtime imports do not use that plugin.

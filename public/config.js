@@ -25,7 +25,6 @@ window.__RUNTIME_CONFIG__ = {
     "Trading,CopyTrade,Portfolio,Markets,Intelligence,Rewards",
   VITE_COPYTRADE_API_URL: "https://rota.algobotapp.com",
   VITE_ROTA_AI_ENABLED: "true",
-  VITE_ROTA_AI_URL: "https://iamstarchild.com",
   VITE_ROTA_AI_TRADING_AUTHORIZATION: "true",
   VITE_CUSTOM_MENUS: "AlgoBotApp,https://algobotapp.com/",
   VITE_ENABLE_SERVICE_DISCLAIMER_DIALOG: "true",
