@@ -456,7 +456,16 @@ function AssistantSession() {
                   ? "Account connected · read only"
                   : "Public research"}
             </span>
-            <span className="rota-ai-badge">
+            <span
+              className="rota-ai-badge"
+              title={
+                caps?.dry_run
+                  ? "AI trading actions are simulated. Market data and chat are live."
+                  : caps
+                    ? "Confirmed AI trading actions can execute live."
+                    : undefined
+              }
+            >
               {caps
                 ? caps.dry_run
                   ? "SIMULATION"

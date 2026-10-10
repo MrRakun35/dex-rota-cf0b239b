@@ -20,6 +20,7 @@
   color: rgb(var(--oui-color-primary-light));
 }
 .rota-ai-panel {
+  color-scheme: dark;
   position: fixed;
   top: 72px;
   right: 16px;
@@ -36,6 +37,29 @@
   color: rgb(var(--oui-color-secondary));
   box-shadow: 0 16px 64px #0009;
   font: 13px var(--oui-font-family);
+}
+.rota-ai-panel * {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--oui-color-primary-light) / 0.5)
+    rgb(var(--oui-color-base-9));
+}
+.rota-ai-panel *::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+.rota-ai-panel *::-webkit-scrollbar-track {
+  background: rgb(var(--oui-color-base-9));
+}
+.rota-ai-panel *::-webkit-scrollbar-thumb {
+  background: rgb(var(--oui-color-primary-light) / 0.5);
+  border: 2px solid rgb(var(--oui-color-base-9));
+  border-radius: 999px;
+}
+.rota-ai-panel *::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--oui-color-primary-light) / 0.75);
+}
+.rota-ai-panel *::-webkit-scrollbar-corner {
+  background: rgb(var(--oui-color-base-9));
 }
 .rota-ai-header {
   display: flex;
