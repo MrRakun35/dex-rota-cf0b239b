@@ -267,6 +267,18 @@
   color: white;
   font-weight: 600;
 }
+.rota-ai-panel .rota-ai-test-connection {
+  display: block;
+  margin-inline: auto;
+  background: rgb(var(--oui-color-line) / 0.08);
+  border-color: rgb(var(--oui-color-line) / 0.16);
+  color: rgb(var(--oui-color-tertiary));
+}
+.rota-ai-panel .rota-ai-test-connection:hover:not(:disabled) {
+  background: rgb(var(--oui-color-line) / 0.12);
+  border-color: rgb(var(--oui-color-line) / 0.3);
+  color: rgb(var(--oui-color-secondary));
+}
 .rota-ai-compose {
   display: flex;
   gap: 8px;

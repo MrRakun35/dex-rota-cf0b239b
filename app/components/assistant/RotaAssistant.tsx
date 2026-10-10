@@ -880,7 +880,7 @@ function AssistantSession() {
               </form>
               <button
                 type="button"
-                className="rota-ai-primary"
+                className="rota-ai-test-connection"
                 disabled={busy || !access?.authenticated}
                 onClick={() =>
                   void perform(async () => {
